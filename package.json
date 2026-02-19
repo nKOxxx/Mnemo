@@ -1,0 +1,39 @@
+{
+  "name": "memory-bridge",
+  "version": "1.0.0",
+  "description": "Long-term memory for AI agents - solve the goldfish problem",
+  "main": "index.js",
+  "bin": {
+    "memory-bridge": "./cli.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "init": "node scripts/init.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "memory",
+    "openclaw",
+    "persistence",
+    "context",
+    "llm"
+  ],
+  "author": "Ares",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "compromise": "^14.10.0",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nKOxxx/MemoryBridge.git"
+  }
+}
