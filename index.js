@@ -12,14 +12,89 @@ const fs = require('fs');
 class MemoryBridge {
   constructor(options = {}) {
     this.storage = options.storage || 'sqlite';
+    this.limits = {
+      maxContentLength: 10000,
+      maxAgentIdLength: 64,
+      maxQueryResults: 100,
+      maxTimelineDays: 365
+    };
     
     if (this.storage === 'sqlite') {
-      this.initSQLite(options.path || './memory.db');
+      const safePath = this.validatePath(options.path || './memory.db');
+      this.initSQLite(safePath);
     } else if (this.storage === 'supabase') {
+      this.validateSupabaseUrl(options.supabaseUrl);
       this.initSupabase(options.supabaseUrl, options.supabaseKey);
     } else {
       throw new Error('Invalid storage type. Use "sqlite" or "supabase"');
     }
+  }
+
+  // ============================================
+  // INPUT VALIDATION
+  // ============================================
+  
+  validatePath(dbPath) {
+    const path = require('path');
+    const resolved = path.resolve(dbPath);
+    const cwd = process.cwd();
+    
+    // Allow paths within home directory or cwd (not system paths)
+    const home = require('os').homedir();
+    const isSafe = resolved.startsWith(cwd) || resolved.startsWith(home);
+    
+    if (!isSafe && resolved.startsWith('/etc')) {
+      throw new Error('Invalid path: Cannot write to system directories');
+    }
+    
+    return resolved;
+  }
+  
+  validateSupabaseUrl(url) {
+    if (!url) return;
+    
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') {
+        console.warn('[MemoryBridge] Warning: Non-HTTPS Supabase URL');
+      }
+    } catch (e) {
+      throw new Error('Invalid Supabase URL format');
+    }
+  }
+  
+  validateStoreInput(content, options) {
+    if (typeof content !== 'string') {
+      throw new Error('Content must be a string');
+    }
+    
+    if (content.length === 0) {
+      throw new Error('Content cannot be empty');
+    }
+    
+    if (content.length > this.limits.maxContentLength) {
+      throw new Error(`Content too long (max ${this.limits.maxContentLength} chars)`);
+    }
+    
+    if (options.agentId) {
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(options.agentId)) {
+        throw new Error('Invalid agentId: use 1-64 alphanumeric chars, underscores, hyphens');
+      }
+    }
+    
+    if (options.importance !== undefined) {
+      const imp = Number(options.importance);
+      if (isNaN(imp) || imp < 1 || imp > 10) {
+        throw new Error('Importance must be a number 1-10');
+      }
+    }
+    
+    const validTypes = ['insight', 'preference', 'error', 'goal', 'decision', 'security', 'conversation'];
+    if (options.type && !validTypes.includes(options.type)) {
+      throw new Error(`Invalid type. Use: ${validTypes.join(', ')}`);
+    }
+    
+    return true;
   }
 
   // ============================================
@@ -116,6 +191,9 @@ class MemoryBridge {
   // ============================================
   
   async store(content, options = {}) {
+    // Validate input
+    this.validateStoreInput(content, options);
+    
     const agentId = options.agentId || 'default';
     const type = options.type || 'insight';
     const importance = options.importance || this.calculateImportance(content, type);
@@ -174,10 +252,15 @@ class MemoryBridge {
   }
 
   async query(queryString, options = {}) {
+    // Validate inputs
+    if (typeof queryString !== 'string') {
+      throw new Error('Query must be a string');
+    }
+    
     const agentId = options.agentId || 'default';
-    const limit = options.limit || 5;
-    const days = options.days || 30;
-    const minImportance = options.minImportance || 0;
+    let limit = Math.min(Number(options.limit) || 5, this.limits.maxQueryResults);
+    let days = Math.min(Number(options.days) || 30, this.limits.maxTimelineDays);
+    const minImportance = Number(options.minImportance) || 0;
     
     const queryKeywords = this.extractKeywords(queryString);
     
@@ -268,6 +351,10 @@ class MemoryBridge {
   }
 
   async timeline(days = 7, options = {}) {
+    // Validate inputs
+    days = Math.min(Number(days) || 7, this.limits.maxTimelineDays);
+    if (days < 1) days = 7;
+    
     const agentId = options.agentId || 'default';
     
     if (this.storage === 'sqlite') {
@@ -345,6 +432,28 @@ class MemoryBridge {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  // ============================================
+  // SECURITY HELPERS
+  // ============================================
+  
+  static sanitizeHTML(content) {
+    if (typeof content !== 'string') return '';
+    return content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  }
+  
+  static sanitizeCLI(input) {
+    if (typeof input !== 'string') return '';
+    // Remove terminal escape sequences and control characters
+    return input
+      .replace(/\x1b\[[0-9;]*m/g, '')  // ANSI color codes
+      .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');  // Control chars
+  }
+
   async close() {
     if (this.storage === 'sqlite' && this.db) {
       return new Promise((resolve) => {
@@ -355,3 +464,5 @@ class MemoryBridge {
 }
 
 module.exports = MemoryBridge;
+module.exports.sanitizeHTML = MemoryBridge.sanitizeHTML;
+module.exports.sanitizeCLI = MemoryBridge.sanitizeCLI;

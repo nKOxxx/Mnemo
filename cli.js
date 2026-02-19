@@ -9,6 +9,14 @@ const MemoryBridge = require('./index.js');
 const fs = require('fs');
 const path = require('path');
 
+// Sanitize helper for CLI inputs
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
 
@@ -70,8 +78,11 @@ async function store(content, flags) {
     return;
   }
   
+  // Sanitize CLI input
+  const sanitizedContent = sanitizeInput(content);
+  
   const options = parseFlags(flags);
-  const result = await memory.store(content, options);
+  const result = await memory.store(sanitizedContent, options);
   
   if (result.success) {
     console.log('✅ Memory stored:', result.id);
@@ -84,7 +95,10 @@ async function query(queryString) {
     return;
   }
   
-  const results = await memory.query(queryString, { limit: 10 });
+  // Sanitize CLI input
+  const sanitizedQuery = sanitizeInput(queryString);
+  
+  const results = await memory.query(sanitizedQuery, { limit: 10 });
   
   if (results.length === 0) {
     console.log('No memories found.');
