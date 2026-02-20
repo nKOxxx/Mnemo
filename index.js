@@ -110,8 +110,8 @@ class MemoryBridge {
     
     this.db = new sqlite3.Database(dbPath);
     
-    // Create table
-    this.db.run(`
+    // Create table synchronously - THIS IS THE FIX
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS memories (
         id TEXT PRIMARY KEY,
         agent_id TEXT NOT NULL,
@@ -121,12 +121,10 @@ class MemoryBridge {
         importance INTEGER DEFAULT 5,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         deleted_at DATETIME
-      )
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent ON memories(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at);
     `);
-    
-    // Create index for fast queries
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_agent ON memories(agent_id)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at)`);
   }
 
   initSupabase(url, key) {
