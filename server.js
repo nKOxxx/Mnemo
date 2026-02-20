@@ -20,12 +20,14 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Initialize SQLite with table creation
 const dbPath = process.env.DB_PATH || './data/memory.db';
+
+// Initialize database synchronously before starting server
+console.log('Initializing database...');
 const db = new sqlite3.Database(dbPath);
 
-// Create table if not exists
-db.run(`
+// Create table synchronously
+db.exec(`
   CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
@@ -35,20 +37,20 @@ db.run(`
     importance INTEGER DEFAULT 5,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME
-  )
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent ON memories(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at);
 `);
 
-db.run(`CREATE INDEX IF NOT EXISTS idx_agent ON memories(agent_id)`);
-db.run(`CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at)`);
+db.close();
+console.log('Database initialized');
 
-// Load MemoryBridge after table setup
+// Now load MemoryBridge
 const MemoryBridge = require('./index.js');
 
 const memory = new MemoryBridge({
-  storage: process.env.SUPABASE_URL ? 'supabase' : 'sqlite',
-  path: dbPath,
-  supabaseUrl: process.env.SUPABASE_URL,
-  supabaseKey: process.env.SUPABASE_SERVICE_KEY
+  storage: 'sqlite',
+  path: dbPath
 });
 
 // Health check
@@ -77,6 +79,7 @@ app.post('/api/memory/store', async (req, res) => {
     
     res.json(result);
   } catch (err) {
+    console.error('Store error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -98,6 +101,7 @@ app.get('/api/memory/query', async (req, res) => {
     
     res.json({ query: q, results });
   } catch (err) {
+    console.error('Query error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -113,6 +117,7 @@ app.get('/api/memory/timeline', async (req, res) => {
     
     res.json({ timeline });
   } catch (err) {
+    console.error('Timeline error:', err);
     res.status(500).json({ error: err.message });
   }
 });
