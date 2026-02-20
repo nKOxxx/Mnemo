@@ -4,7 +4,9 @@
  */
 
 const express = require('express');
-const MemoryBridge = require('./index.js');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -12,10 +14,39 @@ const PORT = process.env.PORT || 10000;
 // Middleware
 app.use(express.json({ limit: '1mb' }));
 
-// Initialize MemoryBridge
+// Ensure data directory exists
+const dataDir = path.dirname(process.env.DB_PATH || './data/memory.db');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Initialize SQLite with table creation
+const dbPath = process.env.DB_PATH || './data/memory.db';
+const db = new sqlite3.Database(dbPath);
+
+// Create table if not exists
+db.run(`
+  CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_type TEXT DEFAULT 'insight',
+    metadata TEXT,
+    importance INTEGER DEFAULT 5,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME
+  )
+`);
+
+db.run(`CREATE INDEX IF NOT EXISTS idx_agent ON memories(agent_id)`);
+db.run(`CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at)`);
+
+// Load MemoryBridge after table setup
+const MemoryBridge = require('./index.js');
+
 const memory = new MemoryBridge({
   storage: process.env.SUPABASE_URL ? 'supabase' : 'sqlite',
-  path: process.env.DB_PATH || './data/memory.db',
+  path: dbPath,
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_SERVICE_KEY
 });
