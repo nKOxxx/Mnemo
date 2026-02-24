@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * OpenClaw Memory Bridge Integration
- * Auto-installs and configures Memory Bridge for OpenClaw
+ * OpenClaw Mnemo Integration
+ * Auto-installs and configures Mnemo for OpenClaw
  */
 
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const OPENCLAW_DIR = process.env.OPENCLAW_WORKSPACE || '/Users/ares/.openclaw/workspace';
-const MEMORY_DIR = path.join(OPENCLAW_DIR, '.memory-bridge');
+const OPENCLAW_DIR = process.env.OPENCLAW_WORKSPACE || path.join(require('os').homedir(), '.openclaw/workspace');
+const MEMORY_DIR = path.join(OPENCLAW_DIR, '.mnemo');
 
 function main() {
-  console.log('🧠 Memory Bridge - OpenClaw Integration\n');
+  console.log('🧠 Mnemo - OpenClaw Integration\n');
   
   // Check if already installed
   if (fs.existsSync(MEMORY_DIR)) {
-    console.log('✅ Memory Bridge already installed');
+    console.log('✅ Mnemo already installed');
     console.log(`   Location: ${MEMORY_DIR}`);
     return;
   }
@@ -39,15 +39,15 @@ function main() {
   );
   
   // Create wrapper module
-  const wrapperCode = `// Memory Bridge OpenClaw Integration
-const MemoryBridge = require('memory-bridge');
+  const wrapperCode = `// Mnemo OpenClaw Integration
+const Mnemo = require('mnemo');
 const path = require('path');
 
 const configPath = path.join(__dirname, 'config.json');
 const config = require(configPath);
 
 // Initialize memory
-const memory = new MemoryBridge(config);
+const memory = new Mnemo(config);
 
 // Enhanced store with OpenClaw defaults
 async function store(content, options = {}) {
@@ -141,17 +141,17 @@ module.exports = {
   fs.writeFileSync(path.join(MEMORY_DIR, 'openclaw-wrapper.js'), wrapperCode);
   
   // Create usage example
-  const exampleCode = `// Example: Using Memory Bridge in OpenClaw
-const { store, query, getSessionContext, autoStore } = require('./.memory-bridge/openclaw-wrapper');
+  const exampleCode = `// Example: Using Mnemo in OpenClaw
+const { store, query, getSessionContext, autoStore } = require('./.mnemo/openclaw-wrapper');
 
 // Store a memory
-await store('Nikola wants to build 3 products this quarter', {
+await store('User wants to build 3 products this quarter', {
   type: 'goal',
   importance: 9
 });
 
 // Query memories
-const results = await query('what Nikola wants to build');
+const results = await query('what user wants to build');
 console.log(results[0].content);
 
 // Get full session context
@@ -168,14 +168,14 @@ await autoStore(userMessage, agentResponse);
   
   fs.writeFileSync(path.join(MEMORY_DIR, 'example.js'), exampleCode);
   
-  console.log('✅ Memory Bridge installed for OpenClaw');
+  console.log('✅ Mnemo installed for OpenClaw');
   console.log(`   Config: ${MEMORY_DIR}/config.json`);
   console.log(`   Database: ${config.path}`);
   console.log(`   Wrapper: ${MEMORY_DIR}/openclaw-wrapper.js`);
   console.log('\nNext steps:');
-  console.log('  1. Install memory-bridge: npm install memory-bridge');
-  console.log('  2. Require in your code: require("./.memory-bridge/openclaw-wrapper")');
-  console.log('  3. See example: cat .memory-bridge/example.js');
+  console.log('  1. Install mnemo: npm install mnemo');
+  console.log('  2. Require in your code: require("./.mnemo/openclaw-wrapper")');
+  console.log('  3. See example: cat .mnemo/example.js');
 }
 
 main().catch(err => {

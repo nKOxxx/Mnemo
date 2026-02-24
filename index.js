@@ -1,5 +1,5 @@
 /**
- * Memory Bridge - Long-term memory for AI agents
+ * Mnemo - Long-term memory for AI agents
  * Solves the goldfish problem: agents that forget everything
  */
 
@@ -9,7 +9,7 @@ const nlp = require('compromise');
 const path = require('path');
 const fs = require('fs');
 
-class MemoryBridge {
+class Mnemo {
   constructor(options = {}) {
     this.storage = options.storage || 'sqlite';
     this.limits = {
@@ -56,7 +56,7 @@ class MemoryBridge {
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== 'https:') {
-        console.warn('[MemoryBridge] Warning: Non-HTTPS Supabase URL');
+        console.warn('[Mnemo] Warning: Non-HTTPS Supabase URL');
       }
     } catch (e) {
       throw new Error('Invalid Supabase URL format');
@@ -461,6 +461,6 @@ class MemoryBridge {
   }
 }
 
-module.exports = MemoryBridge;
-module.exports.sanitizeHTML = MemoryBridge.sanitizeHTML;
-module.exports.sanitizeCLI = MemoryBridge.sanitizeCLI;
+module.exports = Mnemo;
+module.exports.sanitizeHTML = Mnemo.sanitizeHTML;
+module.exports.sanitizeCLI = Mnemo.sanitizeCLI;

@@ -158,7 +158,7 @@ async function runMaintenance() {
 
 /**
  * Get or create database for a project
- * @param {string} project - Project name (e.g., 'general', '2ndcto', 'agentvault')
+ * @param {string} project - Project name (e.g., 'general', 'project1', 'project2')
  * @returns {string} Path to SQLite database
  */
 function getProjectDbPath(project = 'general') {

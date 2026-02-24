@@ -1,19 +1,19 @@
 /**
  * OpenClaw Integration Example
- * Shows how Memory Bridge transforms OpenClaw sessions
+ * Shows how Mnemo transforms OpenClaw sessions
  */
 
-const MemoryBridge = require('../index.js');
+const Mnemo = require('../index.js');
 
 // Initialize memory for OpenClaw
-const memory = new MemoryBridge({
+const memory = new Mnemo({
   storage: 'sqlite',
   path: './openclaw-memory.db',
-  agentId: 'Ares'  // Your OpenClaw agent name
+  agentId: 'agent1'  // Your OpenClaw agent name
 });
 
 // ============================================
-// BEFORE: Without Memory Bridge
+// BEFORE: Without Mnemo
 // ============================================
 
 class OpenClawWithoutMemory {
@@ -36,7 +36,7 @@ class OpenClawWithoutMemory {
 }
 
 // ============================================
-// AFTER: With Memory Bridge
+// AFTER: With Mnemo
 // ============================================
 
 class OpenClawWithMemory {
@@ -122,29 +122,29 @@ class OpenClawWithMemory {
 // ============================================
 
 async function exampleWithoutMemory() {
-  console.log('=== WITHOUT MEMORY BRIDGE ===\n');
+  console.log('=== WITHOUT MNEMO ===\n');
   
   const agent = new OpenClawWithoutMemory();
   
   // Session 1
   console.log('Session 1:');
   console.log('User: "I prefer all my projects to use TypeScript"');
-  console.log('Ares: "Noted! I\'ll remember that." (but actually doesn\'t)\n');
+  console.log('Agent: "Noted! I\'ll remember that." (but actually doesn\'t)\n');
   
   // Session ends... memory lost
   
   // Session 2
   console.log('Session 2 (new session):');
   console.log('User: "Start a new project"');
-  console.log('Ares: "Sure! What language should we use?"');
+  console.log('Agent: "Sure! What language should we use?"');
   console.log('User: "I told you last time - TypeScript!"');
-  console.log('Ares: "I\'m sorry, I don\'t recall that conversation."\n');
+  console.log('Agent: "I\'m sorry, I don\'t recall that conversation."\n');
   
   console.log('❌ Problem: Agent forgets everything between sessions\n');
 }
 
 async function exampleWithMemory() {
-  console.log('=== WITH MEMORY BRIDGE ===\n');
+  console.log('=== WITH MNEMO ===\n');
   
   const agent = new OpenClawWithMemory();
   
@@ -155,18 +155,18 @@ async function exampleWithMemory() {
     type: 'preference',
     importance: 9
   });
-  console.log('Ares: "Got it! I\'ve stored that you prefer TypeScript." ✅\n');
+  console.log('Agent: "Got it! I\'ve stored that you prefer TypeScript." ✅\n');
   
   // Session ends... but memory persists!
   
   // Session 2
   console.log('Session 2 (new session):');
   const greeting = await agent.startNewSession();
-  console.log(`Ares: "${greeting}"`);
+  console.log(`Agent: "${greeting}"`);
   
   console.log('User: "Start a new project"');
   const prefs = await memory.query('TypeScript preference');
-  console.log(`Ares: "Absolutely! I remember you prefer TypeScript, so I'll set that up as the default." ✅\n`);
+  console.log(`Agent: "Absolutely! I remember you prefer TypeScript, so I'll set that up as the default." ✅\n`);
   
   console.log('✅ Success: Agent remembers across sessions!\n');
 }
@@ -178,7 +178,7 @@ async function exampleWithMemory() {
 async function showValue() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║              MEMORY BRIDGE VALUE DEMONSTRATION               ║
+║                 MNEMO VALUE DEMONSTRATION                    ║
 ╚══════════════════════════════════════════════════════════════╝
 
 PROBLEM: The "Goldfish Problem"
@@ -206,7 +206,7 @@ PROBLEM: The "Goldfish Problem"
 ╔══════════════════════════════════════════════════════════════╗
 ║                      METRICS COMPARISON                      ║
 ╠══════════════════════════════════════════════════════════════╣
-║ Metric                    │ Without    │ With Memory Bridge ║
+║ Metric                    │ Without    │ With Mnemo         ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ Session Continuity        │ 0%         │ 100%               ║
 ║ Context Retention         │ ~20 msgs   │ Unlimited          ║
@@ -233,9 +233,9 @@ KEY BENEFITS FOR OPENCLAW:
    Users trust agents that remember, not ones that forget.
 
 IMPLEMENTATION:
-   npm install memory-bridge
+   npm install mnemo
    
-   const memory = new MemoryBridge();
+   const memory = new Mnemo();
    await memory.store("Important insight");
    const context = await memory.query("relevant topic");
 

@@ -22,7 +22,7 @@
 
 | Without Mnemo | With Mnemo |
 |---------------|------------|
-| ❌ "What were we building yesterday?" | ✅ "Continuing the 2ndCTO security audit..." |
+| ❌ "What were we building yesterday?" | ✅ "Continuing the payment integration..." |
 | ❌ Lose context after 20 messages | ✅ Search entire project history |
 | ❌ Repeat requirements every session | ✅ Agent remembers your preferences |
 | ❌ No project isolation | ✅ Each project has isolated memory |
@@ -31,8 +31,8 @@
 ```
 Data Lake: ~/.openclaw/data-lake/
 ├── memory-general/      ← Cross-project knowledge
-├── memory-2ndcto/       ← 2ndCTO memories
-├── memory-agentvault/   ← AgentVault memories
+├── memory-project1/     ← Project 1 memories
+├── memory-project2/     ← Project 2 memories
 └── memory-<project>/    ← Auto-created per project
 ```
 
@@ -55,7 +55,7 @@ Data Lake: ~/.openclaw/data-lake/
 ### 1. Start the Server
 
 ```bash
-cd /Users/ares/.openclaw/workspace/projects/MemoryBridge
+cd /path/to/Mnemo
 ./start.sh start
 
 # ✅ Mnemo running on http://localhost:10000
@@ -68,7 +68,7 @@ cd /Users/ares/.openclaw/workspace/projects/MemoryBridge
 curl -X POST http://localhost:10000/api/memory/store \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "Nikola prefers bullet points over long messages",
+    "content": "User prefers bullet points over long messages",
     "type": "preference",
     "importance": 9,
     "project": "general"
@@ -78,14 +78,14 @@ curl -X POST http://localhost:10000/api/memory/store \
 curl -X POST http://localhost:10000/api/memory/store \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "2ndCTO v1.1.0 Gold Master released Feb 20",
+    "content": "Project Alpha v1.0 released successfully",
     "type": "milestone",
     "importance": 10,
-    "project": "2ndcto"
+    "project": "project1"
   }'
 
 # Query project memory
-curl "http://localhost:10000/api/memory/query?q=2ndCTO&project=2ndcto"
+curl "http://localhost:10000/api/memory/query?q=release&project=project1"
 
 # Search all projects
 curl "http://localhost:10000/api/memory/query-all?q=release"
@@ -153,25 +153,25 @@ open http://localhost:10000
 ### Before (No Memory)
 ```javascript
 // Session 1
-User: "2ndCTO needs x402 integration"
+User: "Project Alpha needs payment integration"
 Ares: "I'll work on that"  // But forgets
 
 // Session 2
-User: "Continue with 2ndCTO"
+User: "Continue with Project Alpha"
 Ares: "Which project is that?"  // Lost
 ```
 
 ### After (With Mnemo)
 ```javascript
-// Session 1 - Auto-detects "2ndCTO", stores to that project
+// Session 1 - Auto-detects "Project Alpha", stores to that project
 await memory.store({
-  content: "2ndCTO needs x402 integration",
-  project: "2ndcto"  // Auto-detected
+  content: "Project Alpha needs payment integration",
+  project: "project1"  // Auto-detected
 });
 
-// Session 2 - Query "2ndCTO" → searches 2ndcto project
-const context = await memory.query("2ndCTO status", { project: "2ndcto" });
-Ares: "Last time we discussed x402 integration for 2ndCTO"
+// Session 2 - Query "Project Alpha" → searches project1
+const context = await memory.query("Project Alpha status", { project: "project1" });
+Ares: "Last time we discussed payment integration for Project Alpha"
 ```
 
 ---
@@ -218,7 +218,7 @@ Searches across ALL project memories, returns aggregated results.
 ### Timeline View
 
 ```bash
-GET /api/memory/timeline?project=2ndcto&days=7
+GET /api/memory/timeline?project=project1&days=7
 
 Returns memories grouped by date:
 {
@@ -254,8 +254,6 @@ PORT=8080 node server.js
 
 ## Storage Calculations
 
-**Current:** 56KB (2 projects, 2 memories)
-
 **Projections:**
 
 | Usage | Memories/Day | Size/Year | 5-Year Total |
@@ -263,7 +261,6 @@ PORT=8080 node server.js
 | Light | 1 | 5MB | 25MB |
 | Normal | 10 | 50MB | 250MB |
 | Heavy | 50 | 250MB | 1.25GB |
-| **Our Est.** | **10** | **70MB** | **350MB** |
 
 **Bottom line:** Even heavy usage stays under 1GB for years.
 
@@ -448,8 +445,8 @@ DATA_LAKE_PATH=/Volumes/External/memory ./start.sh start
 
 ```bash
 # Clone repo
-git clone https://github.com/nKOxxx/MemoryBridge.git
-cd MemoryBridge
+git clone https://github.com/nKOxxx/Mnemo.git
+cd Mnemo
 
 # Install dependencies
 npm install

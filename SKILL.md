@@ -11,8 +11,8 @@ Data Lake Structure:
 ```
 ~/.openclaw/data-lake/
 ├── memory-general/      ← Cross-project knowledge
-├── memory-2ndcto/       ← 2ndCTO memories  
-├── memory-agentvault/   ← AgentVault memories
+├── memory-project1/     ← Project 1 memories
+├── memory-project2/     ← Project 2 memories
 └── memory-<project>/    ← Auto-created per project
 ```
 
@@ -20,7 +20,7 @@ Data Lake Structure:
 
 ```bash
 # Start the server
-cd /Users/ares/.openclaw/workspace/projects/MemoryBridge
+cd /path/to/Mnemo
 ./start.sh start
 
 # Check status
@@ -38,7 +38,7 @@ Content-Type: application/json
   "type": "insight",        // insight, preference, error, goal, milestone, security
   "importance": 5,          // 1-10 scale
   "project": "general",     // Project name (auto-creates)
-  "agentId": "ares"         // Optional
+  "agentId": "agent1"       // Optional
 }
 ```
 
@@ -46,23 +46,23 @@ Content-Type: application/json
 
 ```bash
 # Single project
-GET http://localhost:10000/api/memory/query?q=search&project=2ndcto&limit=5
+GET http://localhost:10000/api/memory/query?q=search&project=project1&limit=5
 
 # All projects
 GET http://localhost:10000/api/memory/query-all?q=release&limit=10
 
 # Timeline
-GET http://localhost:10000/api/memory/timeline?project=2ndcto&days=7
+GET http://localhost:10000/api/memory/timeline?project=project1&days=7
 ```
 
 ## Project Auto-Routing
 
 ```javascript
 // Detect project from user message
-"Work on 2ndCTO"      → project: "2ndcto"
-"AgentVault bug"      → project: "agentvault"  
-"New project: Kraken" → project: "kraken" (auto-created)
-"Remember this"       → project: "general" (default)
+"Work on Project Alpha" → project: "project1"
+"Project Beta bug"      → project: "project2"  
+"New project: Gamma"    → project: "gamma" (auto-created)
+"Remember this"         → project: "general" (default)
 ```
 
 ## OpenClaw Integration Example
@@ -109,11 +109,11 @@ async function handleUserMessage(message, project = 'general') {
 ### Project Context — Switching
 ```javascript
 // User mentions different project
-"Actually, let's talk about AgentVault"
+"Actually, let's talk about Project Beta"
 
-// → Switch to agentvault project
-const context = await loadSessionContext('agentvault');
-// "Last time on AgentVault: x402 payment integration built..."
+// → Switch to project2
+const context = await loadSessionContext('project2');
+// "Last time on Project Beta: payment integration built..."
 ```
 
 ## API Endpoints
@@ -150,7 +150,6 @@ const context = await loadSessionContext('agentvault');
 - Light use: ~5MB/year
 - Normal use: ~50MB/year  
 - Heavy use: ~250MB/year
-- Current: 56KB (2 projects, 2 memories)
 
 ## Server Control
 
@@ -185,9 +184,9 @@ if (healthCheck.status !== 'ok') {
 
 ## GitHub
 
-**Repository:** https://github.com/nKOxxx/MemoryBridge
+**Repository:** https://github.com/nKOxxx/Mnemo
 
-**Version:** 2.0.0 Data Lake Edition
+**Version:** 2.3.0 Data Lake Edition
 
 ---
 
