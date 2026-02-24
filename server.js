@@ -22,6 +22,62 @@ const DATA_LAKE_BASE = process.env.DATA_LAKE_PATH || path.join(require('os').hom
 // Middleware
 app.use(express.json({ limit: '1mb' }));
 
+// Security: CORS - Only allow localhost origins
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  next();
+});
+
+// Security: Remove server header
+app.disable('x-powered-by');
+
+// ============================================
+// RATE LIMITING
+// ============================================
+
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX = 100; // 100 requests per window per IP
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  if (!rateLimits.has(ip)) {
+    rateLimits.set(ip, []);
+  }
+  
+  const attempts = rateLimits.get(ip);
+  const recentAttempts = attempts.filter(time => time > windowStart);
+  
+  rateLimits.set(ip, recentAttempts);
+  
+  if (recentAttempts.length >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  recentAttempts.push(now);
+  return true;
+}
+
+function rateLimitMiddleware(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({
+      error: 'Too many requests. Please try again later.',
+      retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000)
+    });
+  }
+  
+  next();
+}
+
 // Static files for web UI
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -381,6 +437,9 @@ function listProjects() {
 // ============================================
 // API ROUTES
 // ============================================
+
+// Apply rate limiting to all API routes
+app.use('/api', rateLimitMiddleware);
 
 // Health check - shows all projects
 app.get('/api/health', (req, res) => {
