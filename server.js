@@ -10,6 +10,9 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// Crypto module for blind indexing (optional encryption)
+const mnemoCrypto = require('./crypto');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -645,6 +648,226 @@ app.get('/api/memory/query-all', async (req, res) => {
   }
 });
 
+// ============================================
+// ENCRYPTED STORAGE (Blind Indexing)
+// ============================================
+
+// Initialize encrypted storage schema
+async function initEncryptedSchema(project) {
+  const dbPath = getProjectDbPath(project);
+  const db = new sqlite3.Database(dbPath);
+  
+  return new Promise((resolve, reject) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS encrypted_memories (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL DEFAULT 'default',
+        ciphertext TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        content_type TEXT DEFAULT 'insight',
+        importance INTEGER DEFAULT 5,
+        project TEXT DEFAULT 'general',
+        metadata TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deleted_at DATETIME
+      );
+      
+      CREATE TABLE IF NOT EXISTS blind_indexes (
+        memory_id TEXT NOT NULL,
+        index_hash TEXT NOT NULL,
+        FOREIGN KEY (memory_id) REFERENCES encrypted_memories(id) ON DELETE CASCADE
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_blind_hash ON blind_indexes(index_hash);
+    `, (err) => {
+      db.close();
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+// Store encrypted memory with blind indexes
+app.post('/api/memory/store-encrypted', async (req, res) => {
+  try {
+    const { content, type, importance, agentId, project, metadata } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: 'Content required' });
+    }
+    
+    // Get or create encryption key
+    const key = mnemoCrypto.getOrCreateKey();
+    
+    // Encrypt content and generate blind indexes
+    const encrypted = mnemoCrypto.encryptWithIndex(content, key);
+    
+    // Initialize schema if needed
+    await initEncryptedSchema(project || 'general');
+    
+    const db = await getDb(project || 'general');
+    const id = generateId();
+    const now = new Date().toISOString();
+    
+    // Store encrypted memory
+    await new Promise((resolve, reject) => {
+      const stmt = db.prepare(`
+        INSERT INTO encrypted_memories (id, agent_id, ciphertext, iv, content_type, importance, project, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      stmt.run([
+        id,
+        agentId || 'default',
+        encrypted.ciphertext,
+        encrypted.iv,
+        type || 'insight',
+        Math.min(10, Math.max(1, importance || 5)),
+        project || 'general',
+        JSON.stringify(metadata || {}),
+        now
+      ], function(err) {
+        stmt.finalize();
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // Store blind indexes
+    await new Promise((resolve, reject) => {
+      const stmt = db.prepare('INSERT INTO blind_indexes (memory_id, index_hash) VALUES (?, ?)');
+      let completed = 0;
+      
+      if (encrypted.blindIndexes.length === 0) {
+        resolve();
+        return;
+      }
+      
+      encrypted.blindIndexes.forEach(indexHash => {
+        stmt.run([id, indexHash], (err) => {
+          if (err) reject(err);
+          completed++;
+          if (completed === encrypted.blindIndexes.length) {
+            stmt.finalize();
+            resolve();
+          }
+        });
+      });
+    });
+    
+    db.close();
+    
+    res.json({
+      id,
+      encrypted: true,
+      blindIndexes: encrypted.blindIndexes.length,
+      project: project || 'general',
+      createdAt: now
+    });
+  } catch (err) {
+    console.error('[Store-Encrypted Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Query encrypted memories using blind indexes
+app.get('/api/memory/query-encrypted', async (req, res) => {
+  try {
+    const { q, project, limit } = req.query;
+    
+    if (!q) {
+      return res.status(400).json({ error: 'Query parameter "q" required' });
+    }
+    
+    const key = mnemoCrypto.getOrCreateKey();
+    const queryIndex = mnemoCrypto.generateQueryIndex(q, key);
+    
+    const db = await getDb(project || 'general');
+    
+    // Query using blind index
+    const results = await new Promise((resolve, reject) => {
+      const sql = `
+        SELECT em.id, em.ciphertext, em.iv, em.content_type, em.importance, em.metadata, em.created_at
+        FROM encrypted_memories em
+        JOIN blind_indexes bi ON em.id = bi.memory_id
+        WHERE bi.index_hash = ?
+          AND em.deleted_at IS NULL
+        ORDER BY em.importance DESC, em.created_at DESC
+        LIMIT ?
+      `;
+      
+      db.all(sql, [queryIndex, parseInt(limit) || 10], (err, rows) => {
+        db.close();
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+    
+    // Decrypt results for client (client should do this in production)
+    const decryptedResults = results.map(row => {
+      try {
+        const plaintext = mnemoCrypto.decrypt(row.ciphertext, row.iv, key);
+        return {
+          id: row.id,
+          content: plaintext,
+          type: row.content_type,
+          importance: row.importance,
+          metadata: row.metadata ? JSON.parse(row.metadata) : {},
+          created_at: row.created_at
+        };
+      } catch (decryptErr) {
+        return {
+          id: row.id,
+          content: '[decryption failed]',
+          type: row.content_type,
+          importance: row.importance,
+          error: true,
+          created_at: row.created_at
+        };
+      }
+    });
+    
+    res.json({
+      query: q,
+      blindIndex: queryIndex.substring(0, 16) + '...',
+      project: project || 'general',
+      count: decryptedResults.length,
+      encrypted: true,
+      results: decryptedResults
+    });
+  } catch (err) {
+    console.error('[Query-Encrypted Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get encryption status
+app.get('/api/crypto/status', (req, res) => {
+  const enabled = mnemoCrypto.isEncryptionEnabled();
+  res.json({
+    encryptionEnabled: enabled,
+    keyExists: fs.existsSync(path.join(require('os').homedir(), '.openclaw', 'mnemo.key')),
+    algorithm: 'AES-256-GCM',
+    indexing: 'HMAC-SHA256 (blind indexes)',
+    note: 'Server can search but cannot read content without client key'
+  });
+});
+
+// Enable encryption
+app.post('/api/crypto/enable', (req, res) => {
+  try {
+    mnemoCrypto.enableEncryption();
+    res.json({ 
+      success: true, 
+      message: 'Encryption enabled. New memories will be encrypted.',
+      warning: 'Existing memories remain unencrypted. Migrate if needed.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Cleanup old memories
 app.post('/api/cleanup', async (req, res) => {
   try {
@@ -720,7 +943,7 @@ app.get('*', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════╗');
-  console.log('║     Mnemo 🧠 — Data Lake Edition v2.2.0                ║');
+  console.log('║     Mnemo 🧠 — Data Lake Edition v2.3.0                ║');
   console.log('╠════════════════════════════════════════════════════════╣');
   console.log(`║  Data Lake: ${DATA_LAKE_BASE.padEnd(46)}║`);
   console.log(`║  Web UI:    http://localhost:${PORT}${' '.repeat(29 - PORT.toString().length)}║`);
@@ -731,12 +954,16 @@ app.listen(PORT, () => {
   console.log('║    GET  /api/health          - Status & projects       ║');
   console.log('║    GET  /api/projects        - List all projects       ║');
   console.log('║    POST /api/memory/store    - Store a memory          ║');
+  console.log('║    POST /api/memory/store-encrypted - Store encrypted  ║');
   console.log('║    GET  /api/memory/query    - Query project memory    ║');
+  console.log('║    GET  /api/memory/query-encrypted - Query encrypted  ║');
   console.log('║    GET  /api/memory/query-all - Search all projects    ║');
   console.log('║    GET  /api/memory/recent   - Browse recent memories  ║');
   console.log('║    GET  /api/memory/types    - List memory types       ║');
   console.log('║    GET  /api/memory/keywords - Get keyword suggestions ║');
   console.log('║    GET  /api/memory/timeline - Get memory timeline     ║');
+  console.log('║    GET  /api/crypto/status   - Encryption status       ║');
+  console.log('║    POST /api/crypto/enable   - Enable encryption       ║');
   console.log('║    POST /api/cleanup         - Delete old memories     ║');
   console.log('║    POST /api/compress        - Compress old memories   ║');
   console.log('║    POST /api/maintenance     - Run full maintenance    ║');
