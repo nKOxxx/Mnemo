@@ -1,290 +1,194 @@
 ---
 name: memory-bridge
-description: Long-term memory for AI agents. Store, query, and retrieve memories across sessions. Solves the "goldfish problem" where agents forget everything when sessions end. Use when the user wants to persist information between conversations, recall previous context, build user profiles, or maintain continuity across sessions. Works with both local SQLite (private, free) and Supabase (cloud, scalable) storage.
+description: Long-term memory for AI agents with project-based Data Lake architecture. Store, query, and retrieve memories across sessions with automatic project isolation. Data stored locally in ~/.openclaw/data-lake/memory-<project>/ folders. Use when persisting information between conversations, recalling previous context, building user profiles, or maintaining project-specific memories.
 ---
 
-# Memory Bridge
+# Memory Bridge — Data Lake Edition
 
-**Long-term memory for AI agents.**
+**Project-based long-term memory for AI agents.**
 
-Solves the goldfish problem: agents that forget everything when sessions end or context windows fill up.
+Data Lake Structure:
+```
+~/.openclaw/data-lake/
+├── memory-general/      ← Cross-project knowledge
+├── memory-2ndcto/       ← 2ndCTO memories  
+├── memory-agentvault/   ← AgentVault memories
+└── memory-<project>/    ← Auto-created per project
+```
 
 ## Quick Start
 
-```javascript
-const MemoryBridge = require('memory-bridge');
+```bash
+# Start the server
+cd /Users/ares/.openclaw/workspace/projects/MemoryBridge
+./start.sh start
 
-// Initialize (SQLite = local & free)
-const memory = new MemoryBridge({
-  storage: 'sqlite',
-  path: './memory.db'
-});
-
-// Store important insights
-await memory.store("User prefers TypeScript over Python", {
-  type: 'preference',
-  importance: 9
-});
-
-// Retrieve later (even in new session)
-const results = await memory.query("what user prefers");
-// → [{content: "User prefers TypeScript over Python", ...}]
+# Check status
+curl http://localhost:10000/api/health
 ```
 
-## Installation
+## Store Memory
 
 ```bash
-npm install memory-bridge
-```
+POST http://localhost:10000/api/memory/store
+Content-Type: application/json
 
-## OpenClaw Integration
-
-### Before Memory Bridge
-```javascript
-// Session 1
-User: "I prefer dark mode"
-Agent: "Noted!"  // But doesn't actually remember
-
-// Session 2 (new session)
-User: "Why is UI light?"
-Agent: "What do you mean?"  // Completely forgot
-```
-
-### After Memory Bridge
-```javascript
-// Session 1 - Store the preference
-await memory.store("User prefers dark mode", {
-  type: 'preference',
-  importance: 8
-});
-
-// Session 2 - New session, but memory persists
-const prefs = await memory.query("user preferences");
-// Agent: "I'll use dark mode like you prefer"
-```
-
-## API Reference
-
-### Initialize
-
-```javascript
-const MemoryBridge = require('memory-bridge');
-
-// Option 1: SQLite (default, local, private)
-const memory = new MemoryBridge({
-  storage: 'sqlite',
-  path: './data/memory.db'
-});
-
-// Option 2: Supabase (cloud, shareable)
-const memory = new MemoryBridge({
-  storage: 'supabase',
-  supabaseUrl: 'https://your-project.supabase.co',
-  supabaseKey: 'your-service-key'
-});
-```
-
-### Store Memory
-
-```javascript
-await memory.store(content, options)
-
-// Simple
-await memory.store("Important information");
-
-// With metadata
-await memory.store("User prefers TypeScript", {
-  type: 'preference',      // 'insight', 'preference', 'error', 'goal', 'decision'
-  importance: 9,           // 1-10 scale (auto-calculated if omitted)
-  source: 'conversation',  // Where it came from
-  agentId: 'my-agent'      // For multi-agent (default: 'default')
-});
-```
-
-### Query Memories
-
-```javascript
-const results = await memory.query(queryString, options);
-
-// Simple search
-const results = await memory.query("TypeScript preferences");
-
-// With filters
-const results = await memory.query("project goals", {
-  limit: 5,              // Max results (default: 5)
-  days: 30,              // Search last N days (default: 30)
-  minImportance: 7,      // Filter by importance (default: 0)
-  agentId: 'my-agent'    // For multi-agent
-});
-
-// Results format
-[
-  {
-    id: "123-abc",
-    content: "User prefers TypeScript",
-    content_type: "preference",
-    importance: 9,
-    relevance: 0.95,       // Match score
-    created_at: "2026-02-19T10:00:00Z",
-    metadata: { keywords: ['typescript', 'preference', 'user'] }
-  }
-]
-```
-
-### Timeline View
-
-```javascript
-// Get memories grouped by date
-const timeline = await memory.timeline(days, options);
-
-const week = await memory.timeline(7);
-// {
-//   "2026-02-19": [memory1, memory2],
-//   "2026-02-18": [memory3]
-// }
-```
-
-## CLI Usage
-
-```bash
-# Initialize in current directory
-npx memory-bridge init
-
-# Store memory
-npx memory-bridge store "User prefers dark mode" --type=preference --importance=8
-
-# Query
-npx memory-bridge query "user preferences"
-
-# Timeline
-npx memory-bridge timeline 7
-```
-
-## Integration Patterns
-
-### Pattern 1: Session Start (Context Loading)
-```javascript
-async function startSession() {
-  // Load recent context
-  const recent = await memory.query("recent work", { limit: 5, days: 7 });
-  const goals = await memory.query("current goals", { minImportance: 8 });
-  const prefs = await memory.query("user preferences");
-  
-  return buildContext(recent, goals, prefs);
+{
+  "content": "Memory to store",
+  "type": "insight",        // insight, preference, error, goal, milestone, security
+  "importance": 5,          // 1-10 scale
+  "project": "general",     // Project name (auto-creates)
+  "agentId": "ares"         // Optional
 }
 ```
 
-### Pattern 2: During Conversation (Auto-Store)
+## Query Memory
+
+```bash
+# Single project
+GET http://localhost:10000/api/memory/query?q=search&project=2ndcto&limit=5
+
+# All projects
+GET http://localhost:10000/api/memory/query-all?q=release&limit=10
+
+# Timeline
+GET http://localhost:10000/api/memory/timeline?project=2ndcto&days=7
+```
+
+## Project Auto-Routing
+
 ```javascript
-async function handleMessage(userMsg, response) {
-  // Store important insights automatically
-  if (isImportant(userMsg)) {
-    await memory.store(userMsg, {
-      type: 'insight',
-      importance: calculateImportance(userMsg)
+// Detect project from user message
+"Work on 2ndCTO"      → project: "2ndcto"
+"AgentVault bug"      → project: "agentvault"  
+"New project: Kraken" → project: "kraken" (auto-created)
+"Remember this"       → project: "general" (default)
+```
+
+## OpenClaw Integration Example
+
+### Session Start — Load Context
+```javascript
+async function loadSessionContext(project = 'general') {
+  // Recent memories
+  const recent = await query(`recent work`, { project, days: 7, limit: 5 });
+  
+  // High importance items
+  const important = await query(`goals priorities`, { 
+    project, 
+    minImportance: 8,
+    limit: 3 
+  });
+  
+  // User preferences
+  const prefs = await query(`preferences`, { project: 'general', limit: 5 });
+  
+  return { recent, important, prefs };
+}
+```
+
+### During Conversation — Auto-Store
+```javascript
+async function handleUserMessage(message, project = 'general') {
+  // Detect if memory-worthy
+  if (isImportant(message)) {
+    await store({
+      content: message,
+      type: detectType(message),      // 'insight', 'decision', etc.
+      importance: calculateImportance(message),
+      project
     });
   }
   
-  // Enrich response with memory context
-  const relevant = await memory.query(userMsg, { limit: 3 });
-  return generateResponse(userMsg, response, relevant);
+  // Enrich with relevant memories
+  const relevant = await query(message, { project, limit: 3 });
+  return generateResponse(message, relevant);
 }
 ```
 
-### Pattern 3: User Profile Building
+### Project Context — Switching
 ```javascript
-async function buildUserProfile() {
-  const preferences = await memory.query("preference", { limit: 20 });
-  const goals = await memory.query("goal", { limit: 10 });
-  const decisions = await memory.query("decision", { limit: 10 });
-  
-  return {
-    preferences: extractPatterns(preferences),
-    goals: goals.map(g => g.content),
-    decisionHistory: decisions
-  };
-}
+// User mentions different project
+"Actually, let's talk about AgentVault"
+
+// → Switch to agentvault project
+const context = await loadSessionContext('agentvault');
+// "Last time on AgentVault: x402 payment integration built..."
 ```
 
-## Storage Modes
+## API Endpoints
 
-| Feature | SQLite | Supabase |
-|---------|--------|----------|
-| Setup | Zero config | Requires URL/key |
-| Privacy | 100% local | Your Supabase instance |
-| Cost | Free | Supabase pricing |
-| Sync | None | Built-in |
-| Share | File copy | Multi-agent access |
-| Best for | Personal agents | Teams, production |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Status + project list |
+| `/api/projects` | GET | All memory projects |
+| `/api/memory/store` | POST | Store memory |
+| `/api/memory/query` | GET | Query single project |
+| `/api/memory/query-all` | GET | Search all projects |
+| `/api/memory/timeline` | GET | Timeline view |
 
-## Smart Features
+## Memory Types
 
-### Automatic Keyword Extraction
-Content is automatically analyzed for keywords using NLP:
-```javascript
-await memory.store("Working on 2ndCTO security audit");
-// Auto-extracts: ['2ndCTO', 'security', 'audit']
-```
+| Type | Use For | Auto-Importance |
+|------|---------|-----------------|
+| `insight` | Learnings, discoveries | +1 |
+| `preference` | User likes/dislikes | 0 |
+| `goal` | Objectives, targets | +2 |
+| `milestone` | Releases, completions | +2 |
+| `decision` | Choices made | +1 |
+| `error` | Bugs, failures | +2 |
+| `security` | Security-related | +3 |
 
-### Relevance Scoring
-Query results ranked by keyword match + importance:
-```javascript
-// Query "2ndCTO" finds memories with:
-// - Exact keyword matches
-// - Related terms (security, audit)
-// - Weighted by importance
-```
+## Storage
 
-### Importance Auto-Calculation
-```javascript
-// Default = 5
-// +1 if content > 200 chars
-// +2 if type = 'insight'
-// +1 if type = 'error'
-// +3 if type = 'security'
-// +2 if type = 'goal'
-```
+**Local SQLite** (default):
+- Path: `~/.openclaw/data-lake/memory-<project>/bridge.db`
+- Each project = isolated database
+- Zero config, 100% private
 
-## Security
+**Size Estimates:**
+- Light use: ~5MB/year
+- Normal use: ~50MB/year  
+- Heavy use: ~250MB/year
+- Current: 56KB (2 projects, 2 memories)
 
-### Data Protection
-- **SQLite**: Data stays on your machine
-- **Supabase**: Your own database (you control)
-- **Encryption**: At-rest in both modes
+## Server Control
 
-### Best Practices
-```javascript
-// ✓ Good: Environment variables
-const memory = new MemoryBridge({
-  supabaseKey: process.env.SUPABASE_KEY
-});
-
-// ✗ Bad: Hardcoded keys
-const memory = new MemoryBridge({
-  supabaseKey: 'sb-abc-123'  // Never do this
-});
+```bash
+./start.sh start    # Start server
+./start.sh stop     # Stop server
+./start.sh status   # Check status
 ```
 
 ## Error Handling
 
 ```javascript
-try {
-  await memory.store(content);
-} catch (err) {
-  if (err.message.includes('credentials')) {
-    // Config error - check credentials
-  } else if (err.message.includes('connection')) {
-    // Network error - retry
-  }
+// Server not running
+if (healthCheck.status !== 'ok') {
+  // Auto-start or alert user
 }
+
+// Project doesn't exist
+// → Auto-created on first store
+
+// Query returns empty
+// → No memories yet for that project
 ```
+
+## Best Practices
+
+1. **Store with context:** Include enough detail to be useful later
+2. **Use appropriate types:** Helps with filtering and importance
+3. **Set importance:** 8+ for critical, 5 for normal, 3 for minor
+4. **Project isolation:** Keep project-specific memories separate
+5. **Query general for prefs:** User preferences go to `general`
 
 ## GitHub
 
 **Repository:** https://github.com/nKOxxx/MemoryBridge
 
-**Issues/PRs welcome.**
+**Version:** 2.0.0 Data Lake Edition
 
 ---
 
-**Built for the agent economy. Infrastructure that remembers.** 🧠
+**Infrastructure that remembers. Project by project.** 🧠
