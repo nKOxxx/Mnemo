@@ -70,12 +70,25 @@ function rateLimitMiddleware(req, res, next) {
   
   if (!checkRateLimit(ip)) {
     return res.status(429).json({
+      success: false,
       error: 'Too many requests. Please try again later.',
       retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000)
     });
   }
   
   next();
+}
+
+// ============================================
+// STANDARDIZED RESPONSE HELPERS
+// ============================================
+
+function successResponse(data) {
+  return { success: true, data, error: null };
+}
+
+function errorResponse(message, code = null) {
+  return { success: false, data: null, error: message, code };
 }
 
 // ============================================
@@ -462,22 +475,22 @@ app.use('/api', rateLimitMiddleware);
 // Health check - shows all projects
 app.get('/api/health', (req, res) => {
   const projects = listProjects();
-  res.json({
+  res.json(successResponse({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: '2.0.0-data-lake',
     dataLake: DATA_LAKE_BASE,
     projects: projects.length > 0 ? projects : ['general'],
     totalProjects: projects.length
-  });
+  }));
 });
 
 // List all projects
 app.get('/api/projects', (req, res) => {
-  res.json({
+  res.json(successResponse({
     projects: listProjects(),
     dataLake: DATA_LAKE_BASE
-  });
+  }));
 });
 
 // Store memory
@@ -486,11 +499,11 @@ app.post('/api/memory/store', async (req, res) => {
     const { content, type, importance, agentId, project, metadata } = req.body;
     
     if (!content || typeof content !== 'string') {
-      return res.status(400).json({ error: 'Content required (string)' });
+      return res.status(400).json(errorResponse('Content required (string)', 'VALIDATION_ERROR'));
     }
     
     if (content.length > 10000) {
-      return res.status(400).json({ error: 'Content too long (max 10000 chars)' });
+      return res.status(400).json(errorResponse('Content too long (max 10000 chars)', 'VALIDATION_ERROR'));
     }
     
     const result = await storeMemory({
@@ -502,10 +515,10 @@ app.post('/api/memory/store', async (req, res) => {
       metadata: metadata || {}
     });
     
-    res.json(result);
+    res.json(successResponse(result));
   } catch (err) {
     console.error('[Store Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'STORE_ERROR'));
   }
 });
 
@@ -537,15 +550,15 @@ app.get('/api/memory/recent', async (req, res) => {
         })));
       });
     }).then(results => {
-      res.json({
+      res.json(successResponse({
         project: project || 'general',
         count: results.length,
         results
-      });
+      }));
     });
   } catch (err) {
     console.error('[Recent Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'RECENT_ERROR'));
   }
 });
 
@@ -570,14 +583,14 @@ app.get('/api/memory/types', async (req, res) => {
         resolve(rows);
       });
     }).then(types => {
-      res.json({
+      res.json(successResponse({
         project: project || 'general',
         types
-      });
+      }));
     });
   } catch (err) {
     console.error('[Types Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'TYPES_ERROR'));
   }
 });
 
@@ -625,14 +638,14 @@ app.get('/api/memory/keywords', async (req, res) => {
         resolve(keywords);
       });
     }).then(keywords => {
-      res.json({
+      res.json(successResponse({
         project: project || 'general',
         keywords
-      });
+      }));
     });
   } catch (err) {
     console.error('[Keywords Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'KEYWORDS_ERROR'));
   }
 });
 
@@ -654,15 +667,15 @@ app.get('/api/memory/query', async (req, res) => {
       type
     });
     
-    res.json({
+    res.json(successResponse({
       query: q,
       project: project || 'general',
       count: results.length,
       results
-    });
+    }));
   } catch (err) {
     console.error('[Query Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'QUERY_ERROR'));
   }
 });
 
@@ -677,14 +690,14 @@ app.get('/api/memory/timeline', async (req, res) => {
       days: parseInt(days) || 7
     });
     
-    res.json({
+    res.json(successResponse({
       project: project || 'general',
       days: parseInt(days) || 7,
       timeline
-    });
+    }));
   } catch (err) {
     console.error('[Timeline Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'TIMELINE_ERROR'));
   }
 });
 
@@ -713,15 +726,15 @@ app.get('/api/memory/query-all', async (req, res) => {
     // Sort by importance, then relevance
     allResults.sort((a, b) => b.importance - a.importance);
     
-    res.json({
+    res.json(successResponse({
       query: q,
       projectsSearched: projects,
       count: allResults.length,
       results: allResults.slice(0, parseInt(limit) || 10)
-    });
+    }));
   } catch (err) {
     console.error('[Query-All Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'QUERY_ALL_ERROR'));
   }
 });
 
@@ -835,16 +848,16 @@ app.post('/api/memory/store-encrypted', async (req, res) => {
     
     db.close();
     
-    res.json({
+    res.json(successResponse({
       id,
       encrypted: true,
       blindIndexes: encrypted.blindIndexes.length,
       project: project || 'general',
       createdAt: now
-    });
+    }));
   } catch (err) {
     console.error('[Store-Encrypted Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'STORE_ENCRYPTED_ERROR'));
   }
 });
 
@@ -905,43 +918,42 @@ app.get('/api/memory/query-encrypted', async (req, res) => {
       }
     });
     
-    res.json({
+    res.json(successResponse({
       query: q,
       blindIndex: queryIndex.substring(0, 16) + '...',
       project: project || 'general',
       count: decryptedResults.length,
       encrypted: true,
       results: decryptedResults
-    });
+    }));
   } catch (err) {
     console.error('[Query-Encrypted Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'QUERY_ENCRYPTED_ERROR'));
   }
 });
 
 // Get encryption status
 app.get('/api/crypto/status', (req, res) => {
   const enabled = mnemoCrypto.isEncryptionEnabled();
-  res.json({
+  res.json(successResponse({
     encryptionEnabled: enabled,
     keyExists: fs.existsSync(path.join(require('os').homedir(), '.openclaw', 'mnemo.key')),
     algorithm: 'AES-256-GCM',
     indexing: 'HMAC-SHA256 (blind indexes)',
     note: 'Server can search but cannot read content without client key'
-  });
+  }));
 });
 
 // Enable encryption
 app.post('/api/crypto/enable', (req, res) => {
   try {
     mnemoCrypto.enableEncryption();
-    res.json({ 
-      success: true, 
+    res.json(successResponse({ 
       message: 'Encryption enabled. New memories will be encrypted.',
       warning: 'Existing memories remain unencrypted. Migrate if needed.'
-    });
+    }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'CRYPTO_ENABLE_ERROR'));
   }
 });
 
@@ -954,15 +966,14 @@ app.post('/api/cleanup', async (req, res) => {
       days || 90,
       maxImportance || 3
     );
-    res.json({ 
-      success: true, 
+    res.json(successResponse({ 
       deleted,
       project: project || 'general',
       criteria: `Older than ${days || 90} days, importance <= ${maxImportance || 3}`
-    });
+    }));
   } catch (err) {
     console.error('[Cleanup Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'CLEANUP_ERROR'));
   }
 });
 
@@ -974,15 +985,14 @@ app.post('/api/compress', async (req, res) => {
       project || 'general',
       days || 30
     );
-    res.json({ 
-      success: true, 
+    res.json(successResponse({ 
       compressed,
       project: project || 'general',
       criteria: `Older than ${days || 30} days`
-    });
+    }));
   } catch (err) {
     console.error('[Compress Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'COMPRESS_ERROR'));
   }
 });
 
@@ -990,26 +1000,25 @@ app.post('/api/compress', async (req, res) => {
 app.post('/api/maintenance', async (req, res) => {
   try {
     const result = await runMaintenance();
-    res.json({ 
-      success: true, 
+    res.json(successResponse({ 
       ...result,
       timestamp: new Date().toISOString()
-    });
+    }));
   } catch (err) {
     console.error('[Maintenance Error]', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(errorResponse(err.message, 'MAINTENANCE_ERROR'));
   }
 });
 
 // Error handling
 app.use((err, req, res, next) => {
   console.error('[API Error]', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json(errorResponse('Internal server error', 'INTERNAL_ERROR'));
 });
 
 // 404 handler - API routes not found
 app.use('/api/*', (req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json(errorResponse('Not found', 'NOT_FOUND'));
 });
 
 // Web UI fallback - serve index.html for non-API routes
