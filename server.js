@@ -19,6 +19,136 @@ const DATA_LAKE_BASE = process.env.DATA_LAKE_PATH || path.join(require('os').hom
 // Middleware
 app.use(express.json({ limit: '1mb' }));
 
+// Static files for web UI
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================
+// AUTO-CLEANUP & COMPRESSION
+// ============================================
+
+/**
+ * Delete old low-importance memories
+ * @param {string} project - Project name
+ * @param {number} days - Delete memories older than this
+ * @param {number} maxImportance - Delete memories with importance <= this
+ * @returns {Promise<number>} Number of memories deleted
+ */
+async function cleanupOldMemories(project = 'general', days = 90, maxImportance = 3) {
+  const db = await getDb(project);
+  
+  return new Promise((resolve, reject) => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    
+    const sql = `
+      DELETE FROM memories 
+      WHERE created_at < ? 
+        AND importance <= ?
+        AND deleted_at IS NULL
+    `;
+    
+    db.run(sql, [cutoff.toISOString(), maxImportance], function(err) {
+      db.close();
+      if (err) return reject(err);
+      console.log(`[Mnemo Cleanup] Deleted ${this.changes} old memories from ${project}`);
+      resolve(this.changes);
+    });
+  });
+}
+
+/**
+ * Compress old memories by summarizing them
+ * @param {string} project - Project name  
+ * @param {number} days - Compress memories older than this
+ * @returns {Promise<number>} Number of memories compressed
+ */
+async function compressOldMemories(project = 'general', days = 30) {
+  const db = await getDb(project);
+  
+  return new Promise((resolve, reject) => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    
+    // Find old memories that haven't been compressed yet
+    const sql = `
+      SELECT id, content, content_type, created_at
+      FROM memories 
+      WHERE created_at < ?
+        AND deleted_at IS NULL
+        AND metadata NOT LIKE '%"compressed":true%'
+      ORDER BY created_at DESC
+      LIMIT 100
+    `;
+    
+    db.all(sql, [cutoff.toISOString()], async (err, rows) => {
+      if (err) {
+        db.close();
+        return reject(err);
+      }
+      
+      if (!rows.length) {
+        db.close();
+        return resolve(0);
+      }
+      
+      let compressed = 0;
+      
+      for (const row of rows) {
+        // Simple compression: truncate long content
+        if (row.content.length > 200) {
+          const summary = row.content.substring(0, 197) + '...';
+          
+          const updateSql = `
+            UPDATE memories 
+            SET content = ?,
+                metadata = json_object('compressed', true, 'original_length', ?),
+                updated_at = ?
+            WHERE id = ?
+          `;
+          
+          await new Promise((res, rej) => {
+            db.run(updateSql, [summary, row.content.length, new Date().toISOString(), row.id], (err) => {
+              if (err) rej(err);
+              else res();
+            });
+          });
+          
+          compressed++;
+        }
+      }
+      
+      db.close();
+      console.log(`[Mnemo Compression] Compressed ${compressed} memories in ${project}`);
+      resolve(compressed);
+    });
+  });
+}
+
+/**
+ * Run maintenance: cleanup + compression on all projects
+ */
+async function runMaintenance() {
+  console.log('[Mnemo] Running maintenance...');
+  const projects = listProjects();
+  let totalCleaned = 0;
+  let totalCompressed = 0;
+  
+  for (const project of projects) {
+    try {
+      const cleaned = await cleanupOldMemories(project, 90, 3);
+      totalCleaned += cleaned;
+      
+      const compressed = await compressOldMemories(project, 30);
+      totalCompressed += compressed;
+    } catch (err) {
+      console.error(`[Mnemo] Maintenance error for ${project}:`, err.message);
+    }
+  }
+  
+  console.log(`[Mnemo] Maintenance complete: ${totalCleaned} cleaned, ${totalCompressed} compressed`);
+  return { cleaned: totalCleaned, compressed: totalCompressed };
+}
+
 // ============================================
 // DATA LAKE MANAGEMENT
 // ============================================
@@ -382,6 +512,67 @@ app.get('/api/memory/query-all', async (req, res) => {
   }
 });
 
+// Cleanup old memories
+app.post('/api/cleanup', async (req, res) => {
+  try {
+    const { project, days, maxImportance } = req.body;
+    const deleted = await cleanupOldMemories(
+      project || 'general',
+      days || 90,
+      maxImportance || 3
+    );
+    res.json({ 
+      success: true, 
+      deleted,
+      project: project || 'general',
+      criteria: `Older than ${days || 90} days, importance <= ${maxImportance || 3}`
+    });
+  } catch (err) {
+    console.error('[Cleanup Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Compress old memories
+app.post('/api/compress', async (req, res) => {
+  try {
+    const { project, days } = req.body;
+    const compressed = await compressOldMemories(
+      project || 'general',
+      days || 30
+    );
+    res.json({ 
+      success: true, 
+      compressed,
+      project: project || 'general',
+      criteria: `Older than ${days || 30} days`
+    });
+  } catch (err) {
+    console.error('[Compress Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Run full maintenance
+app.post('/api/maintenance', async (req, res) => {
+  try {
+    const result = await runMaintenance();
+    res.json({ 
+      success: true, 
+      ...result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('[Maintenance Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Web UI route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error('[API Error]', err);
@@ -396,19 +587,41 @@ app.use((req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════╗');
-  console.log('║     Mnemo - Data Lake Edition v2.0.0           ║');
+  console.log('║     Mnemo 🧠 — Data Lake Edition v2.0.0                ║');
   console.log('╠════════════════════════════════════════════════════════╣');
   console.log(`║  Data Lake: ${DATA_LAKE_BASE.padEnd(46)}║`);
-  console.log(`║  API:       http://localhost:${PORT}${' '.repeat(31 - PORT.toString().length)}║`);
+  console.log(`║  Web UI:    http://localhost:${PORT}${' '.repeat(29 - PORT.toString().length)}║`);
+  console.log(`║  API:       http://localhost:${PORT}/api${' '.repeat(23 - PORT.toString().length)}║`);
   console.log('║                                                        ║');
   console.log('║  Endpoints:                                            ║');
+  console.log('║    GET  /                    - Web UI (Memory Browser) ║');
   console.log('║    GET  /api/health          - Status & projects       ║');
   console.log('║    GET  /api/projects        - List all projects       ║');
   console.log('║    POST /api/memory/store    - Store a memory          ║');
   console.log('║    GET  /api/memory/query    - Query project memory    ║');
   console.log('║    GET  /api/memory/query-all - Search all projects    ║');
   console.log('║    GET  /api/memory/timeline - Get memory timeline     ║');
+  console.log('║    POST /api/cleanup         - Delete old memories     ║');
+  console.log('║    POST /api/compress        - Compress old memories   ║');
+  console.log('║    POST /api/maintenance     - Run full maintenance    ║');
   console.log('╚════════════════════════════════════════════════════════╝');
+  
+  // Schedule daily maintenance at 3 AM
+  const now = new Date();
+  const nextMaintenance = new Date(now);
+  nextMaintenance.setHours(3, 0, 0, 0);
+  if (nextMaintenance <= now) {
+    nextMaintenance.setDate(nextMaintenance.getDate() + 1);
+  }
+  const msUntilMaintenance = nextMaintenance - now;
+  
+  setTimeout(() => {
+    runMaintenance();
+    // Then every 24 hours
+    setInterval(runMaintenance, 24 * 60 * 60 * 1000);
+  }, msUntilMaintenance);
+  
+  console.log(`[Mnemo] Next maintenance: ${nextMaintenance.toLocaleString()}`);
 });
 
 module.exports = { app, getProjectDbPath, listProjects };
