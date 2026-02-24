@@ -275,7 +275,7 @@ async function storeMemory({ content, type = 'insight', importance = 5, agentId 
 /**
  * Query memories with full-text search
  */
-async function queryMemories({ query, project = 'general', agentId, limit = 5, days = 30 }) {
+async function queryMemories({ query, project = 'general', agentId, limit = 5, days = 30, type }) {
   const db = await getDb(project);
   
   return new Promise((resolve, reject) => {
@@ -294,6 +294,11 @@ async function queryMemories({ query, project = 'general', agentId, limit = 5, d
     if (agentId) {
       sql += ' AND agent_id = ?';
       params.push(agentId);
+    }
+    
+    if (type) {
+      sql += ' AND content_type = ?';
+      params.push(type);
     }
     
     // Simple keyword matching (fallback if FTS not available)
@@ -424,10 +429,137 @@ app.post('/api/memory/store', async (req, res) => {
   }
 });
 
+// Get recent memories (browse without search)
+app.get('/api/memory/recent', async (req, res) => {
+  try {
+    const { project, limit, days } = req.query;
+    const db = await getDb(project || 'general');
+    
+    return new Promise((resolve, reject) => {
+      const since = new Date();
+      since.setDate(since.getDate() - (parseInt(days) || 30));
+      
+      const sql = `
+        SELECT id, agent_id, content, content_type, importance, metadata, created_at
+        FROM memories
+        WHERE deleted_at IS NULL
+          AND created_at > ?
+        ORDER BY created_at DESC
+        LIMIT ?
+      `;
+      
+      db.all(sql, [since.toISOString(), parseInt(limit) || 20], (err, rows) => {
+        db.close();
+        if (err) return reject(err);
+        resolve(rows.map(row => ({
+          ...row,
+          metadata: row.metadata ? JSON.parse(row.metadata) : {}
+        })));
+      });
+    }).then(results => {
+      res.json({
+        project: project || 'general',
+        count: results.length,
+        results
+      });
+    });
+  } catch (err) {
+    console.error('[Recent Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get memory types used in project (for dropdown filter)
+app.get('/api/memory/types', async (req, res) => {
+  try {
+    const { project } = req.query;
+    const db = await getDb(project || 'general');
+    
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT content_type, COUNT(*) as count
+        FROM memories
+        WHERE deleted_at IS NULL
+        GROUP BY content_type
+        ORDER BY count DESC
+      `;
+      
+      db.all(sql, [], (err, rows) => {
+        db.close();
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    }).then(types => {
+      res.json({
+        project: project || 'general',
+        types
+      });
+    });
+  } catch (err) {
+    console.error('[Types Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get keyword suggestions from memories
+app.get('/api/memory/keywords', async (req, res) => {
+  try {
+    const { project, limit } = req.query;
+    const db = await getDb(project || 'general');
+    
+    return new Promise((resolve, reject) => {
+      // Get recent memory content
+      const sql = `
+        SELECT content
+        FROM memories
+        WHERE deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 100
+      `;
+      
+      db.all(sql, [], (err, rows) => {
+        db.close();
+        if (err) return reject(err);
+        
+        // Extract common words (simple approach)
+        const wordCounts = {};
+        const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their']);
+        
+        rows.forEach(row => {
+          const words = row.content.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .split(/\s+/)
+            .filter(w => w.length > 3 && !stopWords.has(w));
+          
+          words.forEach(word => {
+            wordCounts[word] = (wordCounts[word] || 0) + 1;
+          });
+        });
+        
+        // Sort by frequency
+        const keywords = Object.entries(wordCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, parseInt(limit) || 20)
+          .map(([word, count]) => ({ word, count }));
+        
+        resolve(keywords);
+      });
+    }).then(keywords => {
+      res.json({
+        project: project || 'general',
+        keywords
+      });
+    });
+  } catch (err) {
+    console.error('[Keywords Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Query memories
 app.get('/api/memory/query', async (req, res) => {
   try {
-    const { q, project, agentId, limit, days } = req.query;
+    const { q, project, agentId, limit, days, type } = req.query;
     
     if (!q) {
       return res.status(400).json({ error: 'Query parameter "q" required' });
@@ -438,7 +570,8 @@ app.get('/api/memory/query', async (req, res) => {
       project: project || 'general',
       agentId,
       limit: parseInt(limit) || 5,
-      days: parseInt(days) || 30
+      days: parseInt(days) || 30,
+      type
     });
     
     res.json({
@@ -587,7 +720,7 @@ app.get('*', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════╗');
-  console.log('║     Mnemo 🧠 — Data Lake Edition v2.0.0                ║');
+  console.log('║     Mnemo 🧠 — Data Lake Edition v2.2.0                ║');
   console.log('╠════════════════════════════════════════════════════════╣');
   console.log(`║  Data Lake: ${DATA_LAKE_BASE.padEnd(46)}║`);
   console.log(`║  Web UI:    http://localhost:${PORT}${' '.repeat(29 - PORT.toString().length)}║`);
@@ -600,6 +733,9 @@ app.listen(PORT, () => {
   console.log('║    POST /api/memory/store    - Store a memory          ║');
   console.log('║    GET  /api/memory/query    - Query project memory    ║');
   console.log('║    GET  /api/memory/query-all - Search all projects    ║');
+  console.log('║    GET  /api/memory/recent   - Browse recent memories  ║');
+  console.log('║    GET  /api/memory/types    - List memory types       ║');
+  console.log('║    GET  /api/memory/keywords - Get keyword suggestions ║');
   console.log('║    GET  /api/memory/timeline - Get memory timeline     ║');
   console.log('║    POST /api/cleanup         - Delete old memories     ║');
   console.log('║    POST /api/compress        - Compress old memories   ║');

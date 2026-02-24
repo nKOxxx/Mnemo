@@ -211,6 +211,52 @@
       padding-bottom: 0.5rem;
       border-bottom: 1px solid #2a2a3e;
     }
+    
+    .suggestions {
+      background: #151520;
+      border: 1px solid #2a2a3e;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .suggestions h3 {
+      color: #667eea;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .keyword-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    .keyword-tag {
+      background: rgba(102, 126, 234, 0.15);
+      color: #667eea;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    .keyword-tag:hover {
+      background: rgba(102, 126, 234, 0.3);
+      transform: translateY(-2px);
+    }
+    
+    .mode-indicator {
+      color: #888;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background: #151520;
+      border-radius: 8px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -245,9 +291,26 @@
       <select id="projectSelect">
         <option value="">All Projects</option>
       </select>
+      <select id="typeFilter">
+        <option value="">All Types</option>
+        <option value="insight">Insight</option>
+        <option value="preference">Preference</option>
+        <option value="goal">Goal</option>
+        <option value="milestone">Milestone</option>
+        <option value="decision">Decision</option>
+        <option value="error">Error</option>
+        <option value="security">Security</option>
+      </select>
       <input type="text" id="searchInput" placeholder="Search memories...">
       <button onclick="searchMemories()">Search</button>
+      <button onclick="loadRecent()">Browse Recent</button>
+      <button onclick="showKeywords()">Keywords</button>
       <button onclick="loadTimeline()">Timeline</button>
+    </div>
+    
+    <div class="suggestions" id="suggestions" style="display:none;">
+      <h3>💡 Suggested Keywords</h3>
+      <div class="keyword-cloud" id="keywordCloud"></div>
     </div>
     
     <div class="memories" id="memories">
@@ -318,31 +381,93 @@
     }
     
     async function loadMemories() {
+      await loadRecent();
+    }
+    
+    async function loadRecent() {
+      hideSuggestions();
       const container = document.getElementById('memories');
-      container.innerHTML = '<div class="loading">Loading...</div>';
+      const typeFilter = document.getElementById('typeFilter').value;
+      container.innerHTML = '<div class="loading">Loading recent memories...</div>';
       
       try {
         const project = currentProject || 'general';
-        const response = await fetch(`/api/memory/query?q=*&project=${project}&limit=50&days=365`);
+        let url = `/api/memory/recent?project=${project}&limit=50&days=365`;
+        
+        const response = await fetch(url);
         const data = await response.json();
         
-        renderMemories(data.results || []);
+        let results = data.results || [];
+        
+        // Apply type filter if selected
+        if (typeFilter) {
+          results = results.filter(m => m.content_type === typeFilter);
+        }
+        
+        // Show mode indicator
+        const typeLabel = typeFilter ? ` (${typeFilter})` : '';
+        container.innerHTML = `<div class="mode-indicator">📋 Browse Mode: ${results.length} memories${typeLabel}</div>`;
+        
+        renderMemories(results, container);
       } catch (err) {
         container.innerHTML = '<div class="empty">Failed to load memories</div>';
       }
     }
     
+    async function showKeywords() {
+      const suggestionsDiv = document.getElementById('suggestions');
+      const keywordCloud = document.getElementById('keywordCloud');
+      
+      if (suggestionsDiv.style.display === 'block') {
+        hideSuggestions();
+        return;
+      }
+      
+      keywordCloud.innerHTML = '<div class="loading">Loading keywords...</div>';
+      suggestionsDiv.style.display = 'block';
+      
+      try {
+        const project = currentProject || 'general';
+        const response = await fetch(`/api/memory/keywords?project=${project}&limit=30`);
+        const data = await response.json();
+        
+        if (!data.keywords || !data.keywords.length) {
+          keywordCloud.innerHTML = '<div class="empty">No keywords found</div>';
+          return;
+        }
+        
+        keywordCloud.innerHTML = data.keywords.map(k => 
+          `<span class="keyword-tag" onclick="searchKeyword('${k.word}')">${k.word} (${k.count})</span>`
+        ).join('');
+      } catch (err) {
+        keywordCloud.innerHTML = '<div class="empty">Failed to load keywords</div>';
+      }
+    }
+    
+    function hideSuggestions() {
+      document.getElementById('suggestions').style.display = 'none';
+    }
+    
+    function searchKeyword(keyword) {
+      document.getElementById('searchInput').value = keyword;
+      hideSuggestions();
+      searchMemories();
+    }
+    
     async function searchMemories() {
+      hideSuggestions();
       const query = document.getElementById('searchInput').value;
       if (!query) return;
       
       const container = document.getElementById('memories');
+      const typeFilter = document.getElementById('typeFilter').value;
       container.innerHTML = '<div class="loading">Searching...</div>';
       
       try {
         let url;
         if (currentProject) {
           url = `/api/memory/query?q=${encodeURIComponent(query)}&project=${currentProject}&limit=20`;
+          if (typeFilter) url += `&type=${typeFilter}`;
         } else {
           url = `/api/memory/query-all?q=${encodeURIComponent(query)}&limit=20`;
         }
@@ -350,7 +475,18 @@
         const response = await fetch(url);
         const data = await response.json();
         
-        renderMemories(data.results || []);
+        let results = data.results || [];
+        
+        // Apply type filter for query-all (since it doesn't support type param)
+        if (!currentProject && typeFilter) {
+          results = results.filter(m => m.content_type === typeFilter);
+        }
+        
+        // Show mode indicator
+        const typeLabel = typeFilter ? ` (${typeFilter})` : '';
+        container.innerHTML = `<div class="mode-indicator">🔍 Search: "${query}" — ${results.length} results${typeLabel}</div>`;
+        
+        renderMemories(results, container);
       } catch (err) {
         container.innerHTML = '<div class="empty">Search failed</div>';
       }
@@ -371,15 +507,17 @@
       }
     }
     
-    function renderMemories(memories) {
-      const container = document.getElementById('memories');
+    function renderMemories(memories, container = null) {
+      if (!container) {
+        container = document.getElementById('memories');
+      }
       
       if (!memories.length) {
-        container.innerHTML = '<div class="empty">No memories found</div>';
+        container.innerHTML += '<div class="empty">No memories found</div>';
         return;
       }
       
-      container.innerHTML = memories.map(m => `
+      container.innerHTML += memories.map(m => `
         <div class="memory">
           <div class="memory-header">
             <span class="memory-type type-${m.content_type || 'insight'}">
