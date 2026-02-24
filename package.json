@@ -1,7 +1,7 @@
 {
   "name": "memory-bridge",
-  "version": "1.0.1",
-  "description": "Long-term memory for AI agents - solve the goldfish problem",
+  "version": "2.0.0",
+  "description": "Long-term memory for AI agents - Data Lake Edition with multi-project support",
   "main": "index.js",
   "bin": {
     "memory-bridge": "./cli.js"
