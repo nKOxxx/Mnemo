@@ -78,6 +78,24 @@ function rateLimitMiddleware(req, res, next) {
   next();
 }
 
+// ============================================
+// REVERSE PROXY / HTTPS SUPPORT
+// ============================================
+
+// Trust proxy headers when behind reverse proxy (nginx, traefik, etc.)
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', true);
+  console.log('[Mnemo] Trusting proxy headers (X-Forwarded-For, etc.)');
+}
+
+// Security: Force HTTPS redirect in production
+app.use((req, res, next) => {
+  if (process.env.FORCE_HTTPS === 'true' && !req.secure) {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
 // Static files for web UI
 app.use(express.static(path.join(__dirname, 'public')));
 
