@@ -1,6 +1,32 @@
-# Mnemo 🧠 — Data Lake Edition
+# Mnemo 🧠 — The Missing Memory Layer for AI Agents
 
-**Long-term memory for AI agents with project-based isolation. Local-first, zero cloud.**
+**Why do AI agents forget everything?** Every conversation starts from scratch. Context windows fill up. Previous work disappears. Multi-day projects become impossible.
+
+**Mnemo solves this.** It's long-term memory for AI agents — permanent, searchable, project-based memory that persists across sessions.
+
+> *"Finally, agents that remember what we talked about yesterday."*
+
+---
+
+## ⚠️ Production Notice
+
+**Mnemo is designed for LOCAL-ONLY, PERSONAL USE:**
+- ✅ Your data never leaves your machine
+- ⚠️ No cloud backup — you must backup `~/.openclaw/data-lake/` yourself  
+- ⚠️ Encryption keys stored locally — protect your machine
+- ⚠️ Not for enterprise multi-user deployments (single-user only)
+
+---
+
+## The Problem We Solve
+
+| Without Mnemo | With Mnemo |
+|---------------|------------|
+| ❌ "What were we building yesterday?" | ✅ "Continuing the 2ndCTO security audit..." |
+| ❌ Lose context after 20 messages | ✅ Search entire project history |
+| ❌ Repeat requirements every session | ✅ Agent remembers your preferences |
+| ❌ No project isolation | ✅ Each project has isolated memory |
+| ❌ Everything mixed together | ✅ Cross-project search when needed |
 
 ```
 Data Lake: ~/.openclaw/data-lake/
@@ -268,6 +294,76 @@ importance: 2   // Minor note
 - **100% local**: No cloud, no network calls
 - **Your data**: Stays on your machine
 - **No tracking**: No analytics, no telemetry
+
+---
+
+## 🧪 Testing Mnemo
+
+### Quick Test (5 minutes)
+
+```bash
+# 1. Start Mnemo
+cd /path/to/Mnemo
+./start.sh start
+
+# 2. Store a test memory
+curl -X POST http://localhost:10000/api/memory/store \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Testing Mnemo memory storage - this should persist",
+    "type": "insight",
+    "importance": 8,
+    "project": "test"
+  }'
+
+# 3. Query it
+curl "http://localhost:10000/api/memory/query?q=testing&project=test"
+
+# 4. Open Web UI
+open http://localhost:10000
+# Browse to "test" project, verify memory appears
+
+# 5. Test encrypted storage
+curl -X POST http://localhost:10000/api/memory/store-encrypted \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Secret API key: sk_test_12345",
+    "type": "security",
+    "importance": 10,
+    "project": "test"
+  }'
+
+# 6. Query encrypted memory
+curl "http://localhost:10000/api/memory/query-encrypted?q=secret&project=test"
+
+# 7. Check data in database (should be encrypted)
+sqlite3 ~/.openclaw/data-lake/memory-test/bridge.db \
+  "SELECT ciphertext FROM encrypted_memories LIMIT 1;"
+```
+
+### What to Verify
+
+✅ **Basic functionality:**
+- Memory stores and retrieves correctly
+- Web UI shows memories in browse mode
+- Keywords appear in suggestions
+- Timeline view works
+
+✅ **Encryption (if enabled):**
+- Encrypted values are not human-readable in SQLite
+- Query-encrypted returns decrypted content
+- Blind indexes work for searching
+
+✅ **Maintenance:**
+```bash
+# Run cleanup manually
+curl -X POST http://localhost:10000/api/cleanup \
+  -H "Content-Type: application/json" \
+  -d '{"project": "test", "days": 1, "maxImportance": 1}'
+
+# Run full maintenance
+curl -X POST http://localhost:10000/api/maintenance
+```
 
 ---
 
