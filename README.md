@@ -65,6 +65,19 @@ curl "http://localhost:10000/api/memory/query?q=2ndCTO&project=2ndcto"
 curl "http://localhost:10000/api/memory/query-all?q=release"
 ```
 
+### 3. Open Web UI
+
+```bash
+open http://localhost:10000
+```
+
+**Web UI Features:**
+- 📊 **Stats Dashboard** — Total memories, projects, data size
+- 🔍 **Search** — Query across projects with relevance ranking
+- 📅 **Timeline View** — Browse memories by date
+- 🎨 **Dark Theme** — Easy on the eyes
+- 📈 **Importance Visualization** — Visual importance indicators
+
 ---
 
 ## Architecture
@@ -89,12 +102,16 @@ curl "http://localhost:10000/api/memory/query-all?q=release"
 
 | Endpoint | Description |
 |----------|-------------|
+| `GET /` | **Web UI** — Memory Browser |
 | `GET /api/health` | Status + list projects |
 | `GET /api/projects` | All memory projects |
 | `POST /api/memory/store` | Store a memory |
 | `GET /api/memory/query` | Query single project |
 | `GET /api/memory/query-all` | Search all projects |
 | `GET /api/memory/timeline` | Memory timeline |
+| `POST /api/cleanup` | Delete old low-importance memories |
+| `POST /api/compress` | Compress old memories |
+| `POST /api/maintenance` | Run full maintenance |
 
 ---
 
@@ -254,6 +271,51 @@ importance: 2   // Minor note
 
 ---
 
+## Maintenance & Cleanup
+
+Mnemo includes automatic maintenance to keep your data lake healthy.
+
+### Auto-Maintenance (Daily at 3 AM)
+```bash
+# Runs automatically — no action needed
+# - Cleans up old low-importance memories
+# - Compresses old long memories
+```
+
+### Manual Cleanup
+```bash
+# Delete memories older than 90 days with importance ≤ 3
+curl -X POST http://localhost:10000/api/cleanup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project": "general",
+    "days": 90,
+    "maxImportance": 3
+  }'
+
+# Cleanup all projects
+curl -X POST http://localhost:10000/api/maintenance
+```
+
+### Memory Compression
+```bash
+# Compress memories older than 30 days
+curl -X POST http://localhost:10000/api/compress \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project": "general",
+    "days": 30
+  }'
+```
+
+**What compression does:**
+- Truncates memories longer than 200 characters
+- Adds `compressed: true` to metadata
+- Preserves original length in metadata
+- Keeps all other fields intact
+
+---
+
 ## Deployment Options
 
 ### Option 1: Local (Recommended)
@@ -306,6 +368,13 @@ npm install
 ---
 
 ## Version History
+
+- **v2.1.0** (Feb 24, 2026) — Web UI & Maintenance
+  - Web UI at `/` — Memory Browser with dark theme
+  - Auto-cleanup — Deletes old low-importance memories daily
+  - Memory compression — Summarizes old long memories
+  - Maintenance API — `/api/cleanup`, `/api/compress`, `/api/maintenance`
+  - Daily auto-maintenance at 3 AM
 
 - **v2.0.0** (Feb 24, 2026) — Data Lake Edition
   - Multi-project memory isolation
