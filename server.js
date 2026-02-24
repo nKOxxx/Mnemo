@@ -568,20 +568,20 @@ app.post('/api/maintenance', async (req, res) => {
   }
 });
 
-// Web UI route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // Error handling
 app.use((err, req, res, next) => {
   console.error('[API Error]', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// 404 handler
-app.use((req, res) => {
+// 404 handler - API routes not found
+app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'Not found' });
+});
+
+// Web UI fallback - serve index.html for non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start server
