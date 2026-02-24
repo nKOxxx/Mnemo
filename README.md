@@ -112,11 +112,10 @@ open http://localhost:10000
 
 ```
 ~/.openclaw/data-lake/
-├── memory-general/bridge.db       (28KB) ← Cross-project knowledge
-├── memory-2ndcto/bridge.db        (28KB) ← 2ndCTO only
-├── memory-agentvault/bridge.db    (28KB) ← AgentVault only
-├── memory-agentdiplomacy/bridge.db (0KB) ← Empty until used
-└── memory-<new>/bridge.db         ← Auto-created
+├── memory-general/bridge.db       ← Cross-project knowledge
+├── memory-myproject/bridge.db     ← Your project memories
+├── memory-work/bridge.db          ← Work-related memories
+└── memory-<any>/bridge.db         ← Auto-created on first use
 ```
 
 **Each project gets its own SQLite database.**
@@ -146,8 +145,8 @@ open http://localhost:10000
 ### Auto-Routing by Project
 
 ```javascript
-// Mention "2ndCTO" → routes to memory-2ndcto
-// Mention "AgentVault" → routes to memory-agentvault
+// Mention "myproject" → routes to memory-myproject
+// Mention "work" → routes to memory-work
 // No project mentioned → routes to memory-general
 ```
 
