@@ -1,10 +1,10 @@
 {
-  "name": "memory-bridge",
+  "name": "mnemo",
   "version": "2.0.0",
-  "description": "Long-term memory for AI agents - Data Lake Edition with multi-project support",
+  "description": "Long-term memory for AI agents. Data Lake Edition with project-based isolation.",
   "main": "index.js",
   "bin": {
-    "memory-bridge": "./cli.js"
+    "mnemo": "./cli.js"
   },
   "scripts": {
     "test": "jest",
@@ -35,6 +35,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nKOxxx/MemoryBridge.git"
+    "url": "https://github.com/nKOxxx/Mnemo.git"
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Memory Bridge API Server - Data Lake Edition
+ * Mnemo API Server - Data Lake Edition
  * Multi-project memory with isolated databases per project
  * Data location: ~/.openclaw/data-lake/memory-<project>/bridge.db
  */
@@ -37,7 +37,7 @@ function getProjectDbPath(project = 'general') {
   if (!fs.existsSync(projectDir)) {
     fs.mkdirSync(projectDir, { recursive: true });
     fs.chmodSync(projectDir, 0o700); // Owner-only access
-    console.log(`[Memory Bridge] Created new project memory: ${sanitized}`);
+    console.log(`[Mnemo] Created new project memory: ${sanitized}`);
   }
   
   return path.join(projectDir, 'bridge.db');
@@ -75,7 +75,7 @@ function initDatabase(dbPath) {
         db.close();
         return reject(err);
       }
-      console.log(`[Memory Bridge] Initialized database: ${dbPath}`);
+      console.log(`[Mnemo] Initialized database: ${dbPath}`);
       db.close();
       resolve();
     });
@@ -396,7 +396,7 @@ app.use((req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════════════════════╗');
-  console.log('║     Memory Bridge - Data Lake Edition v2.0.0           ║');
+  console.log('║     Mnemo - Data Lake Edition v2.0.0           ║');
   console.log('╠════════════════════════════════════════════════════════╣');
   console.log(`║  Data Lake: ${DATA_LAKE_BASE.padEnd(46)}║`);
   console.log(`║  API:       http://localhost:${PORT}${' '.repeat(31 - PORT.toString().length)}║`);

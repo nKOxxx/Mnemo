@@ -1,4 +1,4 @@
-# Memory Bridge 🧠 — Data Lake Edition
+# Mnemo 🧠 — Data Lake Edition
 
 **Long-term memory for AI agents with project-based isolation. Local-first, zero cloud.**
 
@@ -14,7 +14,7 @@ Data Lake: ~/.openclaw/data-lake/
 
 ## The Problem
 
-| Without Memory Bridge | With Memory Bridge |
+| Without Mnemo | With Mnemo |
 |----------------------|-------------------|
 | ❌ Forget everything when session ends | ✅ Memories persist forever |
 | ❌ Lose context after 20 messages | ✅ Search entire history instantly |
@@ -32,7 +32,7 @@ Data Lake: ~/.openclaw/data-lake/
 cd /Users/ares/.openclaw/workspace/projects/MemoryBridge
 ./start.sh start
 
-# ✅ Memory Bridge running on http://localhost:10000
+# ✅ Mnemo running on http://localhost:10000
 ```
 
 ### 2. Store & Query
@@ -119,7 +119,7 @@ User: "Continue with 2ndCTO"
 Ares: "Which project is that?"  // Lost
 ```
 
-### After (With Memory Bridge)
+### After (With Mnemo)
 ```javascript
 // Session 1 - Auto-detects "2ndCTO", stores to that project
 await memory.store({
@@ -192,7 +192,7 @@ Returns memories grouped by date:
 ### Control Script
 
 ```bash
-./start.sh start    # Start Memory Bridge
+./start.sh start    # Start Mnemo
 ./start.sh stop     # Stop server
 ./start.sh status   # Check if running
 ```
@@ -276,7 +276,7 @@ DATA_LAKE_PATH=/Volumes/External/memory ./start.sh start
 
 ## Comparison
 
-| Feature | Memory Bridge | Vector DB | File Storage |
+| Feature | Mnemo | Vector DB | File Storage |
 |---------|--------------|-----------|--------------|
 | Setup | 2 min | 30+ min | 5 min |
 | Cost | Free | $70+/mo | Free |

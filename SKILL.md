@@ -1,9 +1,9 @@
 ---
-name: memory-bridge
+name: mnemo
 description: Long-term memory for AI agents with project-based Data Lake architecture. Store, query, and retrieve memories across sessions with automatic project isolation. Data stored locally in ~/.openclaw/data-lake/memory-<project>/ folders. Use when persisting information between conversations, recalling previous context, building user profiles, or maintaining project-specific memories.
 ---
 
-# Memory Bridge — Data Lake Edition
+# Mnemo — Data Lake Edition
 
 **Project-based long-term memory for AI agents.**
 
