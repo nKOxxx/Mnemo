@@ -33,10 +33,26 @@
       align-items: center;
       gap: 0.5rem;
     }
-    
+
     .header p {
       color: #888;
       margin-top: 0.5rem;
+    }
+
+    .nav {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .nav a {
+      color: #888;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav a:hover, .nav a.active {
+      color: #667eea;
     }
     
     .container {
@@ -264,6 +280,12 @@
     <div class="container">
       <h1>🧠 Mnemo</h1>
       <p>Agent Memory Browser — Data Lake Edition</p>
+      <nav class="nav">
+        <a href="/" class="active">Browse</a>
+        <a href="/graph.html">Graph</a>
+        <a href="/timeline.html">Timeline</a>
+        <a href="/import-export.html">Import/Export</a>
+      </nav>
     </div>
   </div>
   
