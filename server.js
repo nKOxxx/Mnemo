@@ -1199,7 +1199,6 @@ initAllGraphSchemas().catch(console.error);
 // ============================================
 
 const importExport = require('./import-export');
-const multer = require('multer');
 
 // Configure multer for file uploads
 const upload = multer({ dest: '/tmp/mnemo-uploads/' });

@@ -142,6 +142,10 @@ async function listAgents(db) {
 }
 
 // ============================================
+// MEMORY SHARING
+// ============================================
+
+/**
  * Share a memory with another agent
  * @param {sqlite3.Database} db
  * @param {Object} share
@@ -243,6 +247,10 @@ async function queryAgentMemories(db, agentId, query, options = {}) {
 }
 
 // ============================================
+// SUBSCRIPTIONS
+// ============================================
+
+/**
  * Subscribe an agent to memory updates
  * @param {sqlite3.Database} db
  * @param {Object} subscription
