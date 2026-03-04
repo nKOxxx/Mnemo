@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mnemo Import/Export | Data Portability</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252542;
+      --text-primary: #e8e8ff;
+      --text-secondary: #a0a0c0;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #2a2a4a;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    
+    header {
+      background: var(--bg-secondary);
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    .logo svg {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+    }
+    
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--accent);
+    }
+    
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .section h3 {
+      font-size: 1.125rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+    
+    .section p {
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+    
+    .format-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    
+    .format-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .format-card:hover {
+      border-color: var(--accent);
+    }
+    
+    .format-card.selected {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.1);
+    }
+    
+    .format-card .icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .format-card .name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    
+    .format-card .desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .upload-area:hover, .upload-area.dragover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.05);
+    }
+    
+    .upload-area .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .upload-area p {
+      margin-bottom: 0.5rem;
+    }
+    
+    .upload-area .hint {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    
+    input[type="file"] {
+      display: none;
+    }
+    
+    select {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 100%;
+      margin-bottom: 1rem;
+    }
+    
+    button {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    button:hover {
+      background: var(--accent-hover);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    
+    button.secondary:hover {
+      background: var(--bg-tertiary);
+    }
+    
+    .progress {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      display: none;
+    }
+    
+    .progress.visible {
+      display: block;
+    }
+    
+    .progress-bar {
+      height: 8px;
+      background: var(--bg-primary);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    
+    .alert.visible {
+      display: block;
+    }
+    
+    .alert.success {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid var(--success);
+      color: var(--success);
+    }
+    
+    .alert.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+    
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+      .columns {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .result-list {
+      list-style: none;
+      margin-top: 1rem;
+    }
+    
+    .result-list li {
+      padding: 0.5rem;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="14" stroke="#6366f1" stroke-width="2"/>
+        <circle cx="16" cy="16" r="8" fill="#6366f1"/>
+        <circle cx="16" cy="16" r="4" fill="#0f0f1a"/>
+      </svg>
+      Mnemo Import/Export
+    </div>
+    <nav class="nav-links">
+      <a href="/">Browse</a>
+      <a href="/graph.html">Graph</a>
+      <a href="/timeline.html">Timeline</a>
+      <a href="/import-export.html" class="active">Import/Export</a>
+    </nav>
+  </header>
+  
+  <main>
+    <div class="alert" id="alert"></div>
+    
+    <div class="columns">
+      <div>
+        <h2>📥 Import</h2>
+        <div class="section">
+          <h3>Select Import Format</h3>
+          <p>Choose the source of your data:</p>
+          <div class="format-grid" id="import-formats">
+            <div class="format-card selected" data-format="chatgpt">
+              <div class="icon">🤖</div>
+              <div class="name">ChatGPT</div>
+              <div class="desc">OpenAI conversation export</div>
+            </div>
+            <div class="format-card" data-format="claude">
+              <div class="icon">🧠</div>
+              <div class="name">Claude</div>
+              <div class="desc">Anthropic conversation export</div>
+            </div>
+            <div class="format-card" data-format="json">
+              <div class="icon">📄</div>
+              <div class="name">JSON Backup</div>
+              <div class="desc">Mnemo backup file</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h3>Upload File</h3>
+          <select id="import-project">
+            <option value="general">Import to: general</option>
+          </select>
+          <div class="upload-area" id="upload-area">
+            <div class="icon">📁</div>
+            <p>Drop your file here or click to browse</p>
+            <p class="hint">Supports .json files</p>
+          </div>
+          <input type="file" id="file-input" accept=".json">
+          
+          <div class="progress" id="import-progress">
+            <div>Importing...</div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="import-progress-fill"></div>
+            </div>
+          </div>
+          
+          <button onclick="startImport()" id="import-btn" style="margin-top: 1rem; width: 100%;">
+            Start Import
+          </button>
+        </div>
+      </div>
+      
+      <div>
+        <h2>📤 Export</h2>
+        <div class="section">
+          <h3>Select Export Format</h3>
+          <p>Choose how you want to export your memories:</p>
+          <div class="format-grid" id="export-formats">
+            <div class="format-card selected" data-format="json">
+              <div class="icon">📄</div>
+              <div class="name">JSON</div>
+              <div class="desc">Full backup with metadata</div>
+            </div>
+            <div class="format-card" data-format="obsidian">
+              <div class="icon">📝</div>
+              <div class="name">Obsidian</div>
+              <div class="desc">Markdown files with frontmatter</div>
+            </div>
+            <div class="format-card" data-format="notion">
+              <div class="icon">📊</div>
+              <div class="name">Notion CSV</div>
+              <div class="desc">CSV for Notion import</div>
+            </div>
+            <div class="format-card" data-format="text">
+              <div class="icon">📃</div>
+              <div class="name">Plain Text</div>
+              <div class="desc">Simple text format</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h3>Export Options</h3>
+          <select id="export-project">
+            <option value="general">Export from: general</option>
+          </select>
+          <select id="export-days">
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365" selected>Last year</option>
+            <option value="3650">All time</option>
+          </select>
+          <button onclick="startExport()" style="width: 100%;">
+            Download Export
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let selectedImportFormat = 'chatgpt';
+    let selectedExportFormat = 'json';
+    let selectedFile = null;
+    
+    // Load projects
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        const options = data.data.projects.map(p => `<option value="${p}">${p}</option>`).join('');
+        document.getElementById('import-project').innerHTML = options;
+        document.getElementById('export-project').innerHTML = options;
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      }
+    }
+    
+    // Import format selection
+    document.getElementById('import-formats').addEventListener('click', (e) => {
+      const card = e.target.closest('.format-card');
+      if (!card) return;
+      
+      document.querySelectorAll('#import-formats .format-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedImportFormat = card.dataset.format;
+    });
+    
+    // Export format selection
+    document.getElementById('export-formats').addEventListener('click', (e) => {
+      const card = e.target.closest('.format-card');
+      if (!card) return;
+      
+      document.querySelectorAll('#export-formats .format-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedExportFormat = card.dataset.format;
+    });
+    
+    // File upload
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+    
+    function handleFile(file) {
+      selectedFile = file;
+      uploadArea.innerHTML = `
+        <div class="icon">✅</div>
+        <p><strong>${file.name}</strong></p>
+        <p class="hint">${(file.size / 1024).toFixed(1)} KB</p>
+      `;
+    }
+    
+    // Start import
+    async function startImport() {
+      if (!selectedFile) {
+        showAlert('Please select a file first', 'error');
+        return;
+      }
+      
+      const btn = document.getElementById('import-btn');
+      const progress = document.getElementById('import-progress');
+      const progressFill = document.getElementById('import-progress-fill');
+      
+      btn.disabled = true;
+      progress.classList.add('visible');
+      progressFill.style.width = '30%';
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('format', selectedImportFormat);
+      formData.append('project', document.getElementById('import-project').value);
+      
+      try {
+        progressFill.style.width = '60%';
+        const res = await fetch('/api/import', {
+          method: 'POST',
+          body: formData
+        });
+        
+        progressFill.style.width = '100%';
+        const data = await res.json();
+        
+        if (data.success) {
+          showAlert(`Successfully imported ${data.data.imported} memories!`, 'success');
+          // Reset form
+          selectedFile = null;
+          uploadArea.innerHTML = `
+            <div class="icon">📁</div>
+            <p>Drop your file here or click to browse</p>
+            <p class="hint">Supports .json files</p>
+          `;
+        } else {
+          showAlert(data.error || 'Import failed', 'error');
+        }
+      } catch (err) {
+        showAlert('Import failed: ' + err.message, 'error');
+      }
+      
+      btn.disabled = false;
+      progress.classList.remove('visible');
+    }
+    
+    // Start export
+    async function startExport() {
+      const project = document.getElementById('export-project').value;
+      const days = document.getElementById('export-days').value;
+      
+      const url = `/api/export?format=${selectedExportFormat}&project=${project}&days=${days}`;
+      
+      if (selectedExportFormat === 'obsidian') {
+        // Obsidian returns JSON info, not a download
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.success) {
+            showAlert(`Exported ${data.data.exported} memories to ${data.data.path}`, 'success');
+          }
+        } catch (err) {
+          showAlert('Export failed: ' + err.message, 'error');
+        }
+      } else {
+        // Trigger download
+        window.location.href = url;
+      }
+    }
+    
+    function showAlert(message, type) {
+      const alert = document.getElementById('alert');
+      alert.textContent = message;
+      alert.className = `alert ${type} visible`;
+      setTimeout(() => alert.classList.remove('visible'), 5000);
+    }
+    
+    // Initialize
+    loadProjects();
+  </script>
+</body>
+</html>

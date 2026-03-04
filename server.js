@@ -13,6 +13,9 @@ const crypto = require('crypto');
 // Crypto module for blind indexing (optional encryption)
 const mnemoCrypto = require('./crypto');
 
+// File upload for import
+const multer = require('multer');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -1190,6 +1193,243 @@ app.get('/api/graph/stats', async (req, res) => {
 
 // Initialize graph schemas on startup
 initAllGraphSchemas().catch(console.error);
+
+// ============================================
+// IMPORT/EXPORT API
+// ============================================
+
+const importExport = require('./import-export');
+const multer = require('multer');
+
+// Configure multer for file uploads
+const upload = multer({ dest: '/tmp/mnemo-uploads/' });
+
+// Import memories from file
+app.post('/api/import', upload.single('file'), async (req, res) => {
+  try {
+    const { format, project } = req.body;
+    const file = req.file;
+    
+    if (!file) {
+      return res.status(400).json(errorResponse('No file uploaded'));
+    }
+    
+    let memories = [];
+    
+    switch (format) {
+      case 'chatgpt':
+        memories = importExport.importChatGPT(file.path);
+        break;
+      case 'claude':
+        memories = importExport.importClaude(file.path);
+        break;
+      case 'json':
+        memories = importExport.importJSON(file.path);
+        break;
+      case 'obsidian':
+        return res.status(400).json(errorResponse('Obsidian import requires directory, not file'));
+      default:
+        // Auto-detect based on content
+        try {
+          memories = importExport.importJSON(file.path);
+        } catch {
+          memories = importExport.importChatGPT(file.path);
+        }
+    }
+    
+    // Store imported memories
+    const db = await getDb(project || 'general');
+    const stored = [];
+    
+    for (const memory of memories) {
+      const stmt = db.prepare(`
+        INSERT INTO memories (id, agent_id, content, content_type, importance, project, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const id = generateId();
+      await new Promise((resolve, reject) => {
+        stmt.run([
+          id,
+          'import',
+          memory.content,
+          memory.type,
+          memory.importance,
+          project || 'general',
+          JSON.stringify(memory.metadata),
+          memory.createdAt
+        ], (err) => {
+          stmt.finalize();
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      stored.push({ id, ...memory });
+    }
+    
+    db.close();
+    
+    // Clean up uploaded file
+    fs.unlinkSync(file.path);
+    
+    res.json(successResponse({
+      imported: stored.length,
+      format: format || 'auto-detected',
+      project: project || 'general',
+      memories: stored.slice(0, 5).map(m => ({ id: m.id, type: m.type, preview: m.content.substring(0, 100) }))
+    }));
+  } catch (err) {
+    console.error('[Import Error]', err);
+    res.status(500).json(errorResponse(err.message, 'IMPORT_ERROR'));
+  }
+});
+
+// Export memories
+app.get('/api/export', async (req, res) => {
+  try {
+    const { format, project, days } = req.query;
+    
+    // Get memories from project
+    const db = await getDb(project || 'general');
+    
+    const since = new Date();
+    since.setDate(since.getDate() - (parseInt(days) || 365));
+    
+    const memories = await new Promise((resolve, reject) => {
+      const sql = `
+        SELECT id, content, content_type, importance, created_at, metadata
+        FROM memories
+        WHERE deleted_at IS NULL
+          AND created_at > ?
+        ORDER BY created_at DESC
+      `;
+      db.all(sql, [since.toISOString()], (err, rows) => {
+        db.close();
+        if (err) reject(err);
+        else resolve(rows.map(r => ({
+          id: r.id,
+          content: r.content,
+          type: r.content_type,
+          importance: r.importance,
+          createdAt: r.created_at,
+          metadata: r.metadata ? JSON.parse(r.metadata) : {}
+        })));
+      });
+    });
+    
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `mnemo-export-${project || 'general'}-${timestamp}`;
+    
+    switch (format) {
+      case 'json': {
+        const outputPath = `/tmp/${filename}.json`;
+        const count = importExport.exportToJSON(memories, outputPath);
+        res.download(outputPath, `${filename}.json`, () => {
+          fs.unlinkSync(outputPath);
+        });
+        break;
+      }
+      case 'obsidian': {
+        const outputDir = `/tmp/${filename}-obsidian`;
+        const count = importExport.exportToObsidian(memories, outputDir);
+        // Create zip of directory (simplified - just return count for now)
+        res.json(successResponse({
+          exported: count,
+          format: 'obsidian',
+          path: outputDir,
+          note: 'Obsidian export creates markdown files in the specified directory'
+        }));
+        break;
+      }
+      case 'notion': {
+        const outputPath = `/tmp/${filename}.csv`;
+        const count = importExport.exportToNotionCSV(memories, outputPath);
+        res.download(outputPath, `${filename}.csv`, () => {
+          fs.unlinkSync(outputPath);
+        });
+        break;
+      }
+      case 'text': {
+        const outputPath = `/tmp/${filename}.txt`;
+        const count = importExport.exportToText(memories, outputPath);
+        res.download(outputPath, `${filename}.txt`, () => {
+          fs.unlinkSync(outputPath);
+        });
+        break;
+      }
+      default:
+        res.status(400).json(errorResponse('Invalid format. Use: json, obsidian, notion, text'));
+    }
+  } catch (err) {
+    console.error('[Export Error]', err);
+    res.status(500).json(errorResponse(err.message, 'EXPORT_ERROR'));
+  }
+});
+
+// Get import formats info
+app.get('/api/import/formats', (req, res) => {
+  res.json(successResponse({
+    formats: [
+      {
+        id: 'chatgpt',
+        name: 'ChatGPT',
+        description: 'OpenAI ChatGPT conversation export (conversations.json)',
+        fileType: '.json'
+      },
+      {
+        id: 'claude',
+        name: 'Claude',
+        description: 'Anthropic Claude conversation export',
+        fileType: '.json'
+      },
+      {
+        id: 'json',
+        name: 'JSON Backup',
+        description: 'Mnemo JSON backup format',
+        fileType: '.json'
+      },
+      {
+        id: 'obsidian',
+        name: 'Obsidian',
+        description: 'Obsidian vault (markdown files)',
+        fileType: 'directory'
+      }
+    ]
+  }));
+});
+
+// Get export formats info
+app.get('/api/export/formats', (req, res) => {
+  res.json(successResponse({
+    formats: [
+      {
+        id: 'json',
+        name: 'JSON',
+        description: 'Full JSON backup with all metadata',
+        extension: '.json'
+      },
+      {
+        id: 'obsidian',
+        name: 'Obsidian',
+        description: 'Markdown files with YAML frontmatter',
+        extension: '.md'
+      },
+      {
+        id: 'notion',
+        name: 'Notion CSV',
+        description: 'CSV format for Notion import',
+        extension: '.csv'
+      },
+      {
+        id: 'text',
+        name: 'Plain Text',
+        description: 'Simple text backup',
+        extension: '.txt'
+      }
+    ]
+  }));
+});
 
 // Error handling
 app.use((err, req, res, next) => {
