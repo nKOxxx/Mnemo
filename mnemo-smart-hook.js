@@ -28,48 +28,98 @@ class MnemoSmartHook {
     
     this.SMART_TRIGGERS = {
       decision: { 
-        patterns: ['decided to', 'decision:', 'i decided', 'we decided', 'chose to', 'going with', 'settled on'], 
+        patterns: ['decided to', 'decision:', 'i decided', 'we decided', 'chose to', 'going with', 'settled on', 'finalized', 'concluded'], 
         score: 7, 
         type: 'decision' 
       },
       milestone: { 
-        patterns: ['shipped', 'released', 'launched', 'deployed', 'completed', 'finished', 'done', 'v1.0', 'v2.0', 'v3.0'], 
+        patterns: ['shipped', 'released', 'launched', 'deployed', 'completed', 'finished', 'done', 'v1.0', 'v2.0', 'v3.0', 'merged', 'published', 'went live', 'in production'], 
         score: 8, 
         type: 'milestone' 
       },
       goal: { 
-        patterns: ['goal is', 'objective:', 'target:', 'aiming for', 'plan to', 'need to', 'want to', 'the plan is'], 
+        patterns: ['goal is', 'objective:', 'target:', 'aiming for', 'plan to', 'need to', 'want to', 'the plan is', 'roadmap', 'milestone:', 'deliverable'], 
         score: 6, 
         type: 'goal' 
       },
       issue: { 
-        patterns: ['bug:', 'error:', 'issue:', 'problem:', 'broken', 'fails', 'crash', 'exception', 'not working', 'doesn\'t work'], 
+        patterns: ['bug:', 'error:', 'issue:', 'problem:', 'broken', 'fails', 'crash', 'exception', 'not working', 'doesn\'t work', 'failed', 'timeout', '502', '500', '404', 'fix:', 'hotfix', 'broken'], 
         score: 7, 
         type: 'error' 
       },
       security: { 
-        patterns: ['api key', 'password', 'secret', 'token', 'credential', 'auth', 'encryption', 'vulnerability', 'exploit'], 
+        patterns: ['api key', 'password', 'secret', 'token', 'credential', 'auth', 'encryption', 'vulnerability', 'exploit', 'private key', 'public key', 'ssh key', 'env var', 'environment variable', '.env', 'leak', 'breach', 'hack'], 
         score: 9, 
         type: 'security' 
       },
-      architecture: { 
-        patterns: ['architecture', 'design:', 'structure:', 'pattern:', 'refactor', 'redesign', 'restructure', 'tech stack'], 
+      deployment: { 
+        patterns: ['deploy', 'deployment', 'vercel', 'production', 'staging', 'ci/cd', 'pipeline', 'github actions', 'build', 'release', 'rollback', 'docker', 'kubernetes', 'k8s', 'aws', 'ec2', 'lambda', 'serverless'], 
         score: 6, 
         type: 'insight' 
       },
+      github: { 
+        patterns: ['github', 'git', 'commit', 'pull request', 'pr #', 'merge', 'branch', 'repository', 'repo:', 'clone', 'fork', 'push', 'issue #', 'github.com'], 
+        score: 5, 
+        type: 'insight' 
+      },
+      database: { 
+        patterns: ['database', 'db:', 'postgres', 'mysql', 'mongodb', 'sqlite', 'prisma', 'migration', 'schema', 'table', 'query', 'sql', 'nosql', 'redis', 'supabase'], 
+        score: 6, 
+        type: 'insight' 
+      },
+      api: { 
+        patterns: ['api:', 'endpoint', 'route', 'controller', 'middleware', 'request', 'response', 'rest', 'graphql', 'websocket', 'json', 'payload', 'header', 'authentication'], 
+        score: 5, 
+        type: 'insight' 
+      },
+      architecture: { 
+        patterns: ['architecture', 'design:', 'structure:', 'pattern:', 'refactor', 'redesign', 'restructure', 'tech stack', 'framework', 'library', 'module', 'component', 'service', 'microservice'], 
+        score: 6, 
+        type: 'insight' 
+      },
+      description: { 
+        patterns: ['description:', 'overview:', 'summary:', 'details:', 'spec:', 'specification', 'requirements', 'scope', 'functionality', 'feature:', 'user story'], 
+        score: 5, 
+        type: 'insight' 
+      },
+      testing: { 
+        patterns: ['test:', 'testing', 'unit test', 'integration test', 'e2e', 'cypress', 'jest', 'mocha', 'coverage', 'mock', 'stub', 'tdd', 'qa', 'quality assurance'], 
+        score: 5, 
+        type: 'insight' 
+      },
+      performance: { 
+        patterns: ['performance', 'optimize', 'optimization', 'speed', 'latency', 'throughput', 'benchmark', 'profiling', 'memory leak', 'cpu', 'slow', 'cache', 'caching', 'cdn'], 
+        score: 6, 
+        type: 'insight' 
+      },
+      ui: { 
+        patterns: ['ui:', 'ux:', 'interface', 'design', 'frontend', 'css', 'tailwind', 'component', 'layout', 'responsive', 'mobile', 'desktop', 'theme', 'dark mode'], 
+        score: 4, 
+        type: 'insight' 
+      },
+      third_party: { 
+        patterns: ['stripe', 'twilio', 'sendgrid', 'aws', 'gcp', 'azure', 'firebase', 'auth0', 'clerk', 'supabase', 'openai', 'anthropic', 'gemini', 'deepseek'], 
+        score: 5, 
+        type: 'insight' 
+      },
       learning: { 
-        patterns: ['learned that', 'realized', 'discovered', 'found out', 'turns out', 'note:', 'remember that'], 
+        patterns: ['learned that', 'realized', 'discovered', 'found out', 'turns out', 'note:', 'remember that', 'insight:', 'takeaway', 'lesson learned'], 
         score: 5, 
         type: 'insight' 
       },
       preference: { 
-        patterns: ['prefer', 'i like', 'i want', 'don\'t like', 'hate', 'love', 'favorite', 'i hate'], 
+        patterns: ['prefer', 'i like', 'i want', 'don\'t like', 'hate', 'love', 'favorite', 'i hate', 'i dislike'], 
         score: 4, 
         type: 'preference' 
       },
       important: { 
-        patterns: ['important:', 'critical:', 'urgent:', 'must', 'essential', 'crucial', 'vital', 'key point'], 
+        patterns: ['important:', 'critical:', 'urgent:', 'must', 'essential', 'crucial', 'vital', 'key point', 'priority', 'blocking', 'breaking change'], 
         score: 7, 
+        type: 'insight' 
+      },
+      question: { 
+        patterns: ['question:', 'how do i', 'how to', 'what is', 'why does', 'can you explain', 'help with', 'stuck on', 'confused about'], 
+        score: 4, 
         type: 'insight' 
       }
     };
