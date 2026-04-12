@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cognexia Demo - AI Research Assistant</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+    .header h1 { font-size: 36px; margin-bottom: 10px; }
+    .header p { opacity: 0.9; }
+    .demo-box {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    input, textarea, button {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    input { flex: 1; }
+    button {
+      background: #667eea;
+      color: white;
+      cursor: pointer;
+      border: none;
+      font-weight: 600;
+      min-width: 120px;
+      transition: all 0.3s;
+    }
+    button:hover { background: #5568d3; transform: translateY(-2px); }
+    .results { margin-top: 20px; }
+    .result-item {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      border-left: 4px solid #667eea;
+    }
+    .result-item .content { margin-bottom: 8px; }
+    .result-item .meta {
+      font-size: 12px;
+      color: #999;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .tab { padding: 12px 20px; cursor: pointer; color: #999; font-weight: 600; border-bottom: 3px solid transparent; }
+    .tab.active { color: #667eea; border-bottom-color: #667eea; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧠 Cognexia Demo</h1>
+      <p>AI Research Assistant with Persistent Memory</p>
+    </div>
+
+    <div class="demo-box">
+      <div id="status"></div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('research')">📚 Research</div>
+        <div class="tab" onclick="switchTab('memory')">💾 Memory</div>
+        <div class="tab" onclick="switchTab('search')">🔍 Search</div>
+      </div>
+
+      <!-- Research Tab -->
+      <div id="research" class="tab-content active">
+        <h2>Add Research Notes</h2>
+        <textarea id="researchInput" placeholder="Enter your research notes..." rows="6" style="width: 100%; margin-bottom: 10px;"></textarea>
+        <button onclick="addResearchNote()">Save Note</button>
+        <div id="researchList" class="results"></div>
+      </div>
+
+      <!-- Memory Tab -->
+      <div id="memory" class="tab-content">
+        <h2>Memory Overview</h2>
+        <div style="margin-bottom: 20px;">
+          <p>Total memories: <strong id="totalCount">0</strong></p>
+          <p>Project: <strong>research</strong></p>
+        </div>
+        <button onclick="refreshMemory()">Refresh</button>
+        <div id="memoryList" class="results" style="margin-top: 20px;"></div>
+      </div>
+
+      <!-- Search Tab -->
+      <div id="search" class="tab-content">
+        <h2>Search Memory</h2>
+        <div class="input-group">
+          <input id="searchQuery" type="text" placeholder="Search keywords..." />
+          <button onclick="searchMemory()">Search</button>
+        </div>
+        <div id="searchResults" class="results"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:10000/api';
+    const PROJECT = 'research';
+
+    function showStatus(message, type = 'success') {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = 'status ' + type;
+      setTimeout(() => status.textContent = '', 3000);
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+      if (tabName === 'memory') refreshMemory();
+    }
+
+    async function addResearchNote() {
+      const content = document.getElementById('researchInput').value;
+      if (!content) {
+        showStatus('Please enter a note', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API}/memory/store`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: PROJECT,
+            content,
+            type: 'research',
+            importance: 7,
+            agentId: 'demo'
+          })
+        });
+        const data = await response.json();
+        if (data.success === false) throw new Error(data.error);
+        
+        document.getElementById('researchInput').value = '';
+        showStatus('Research note saved!');
+        listResearchNotes();
+      } catch (e) {
+        showStatus('Error: ' + e.message, 'error');
+      }
+    }
+
+    async function listResearchNotes() {
+      try {
+        const response = await fetch(`${API}/memory/recent?project=${PROJECT}&limit=5`);
+        const data = await response.json();
+        const notes = (data.data?.results || []).filter(m => m.content_type === 'research');
+        
+        const html = notes.map(n => `
+          <div class="result-item">
+            <div class="content">${n.content}</div>
+            <div class="meta">⭐ ${n.importance} | ${new Date(n.created_at).toLocaleDateString()}</div>
+          </div>
+        `).join('');
+        
+        document.getElementById('researchList').innerHTML = html || '<p style="color: #999;">No notes yet</p>';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function refreshMemory() {
+      try {
+        const response = await fetch(`${API}/memory/recent?project=${PROJECT}&limit=100`);
+        const data = await response.json();
+        const memories = data.data?.results || [];
+        
+        document.getElementById('totalCount').textContent = memories.length;
+        
+        const html = memories.map(m => `
+          <div class="result-item">
+            <div class="content">${m.content.substring(0, 100)}...</div>
+            <div class="meta">${m.content_type} | ⭐ ${m.importance} | ${new Date(m.created_at).toLocaleDateString()}</div>
+          </div>
+        `).join('');
+        
+        document.getElementById('memoryList').innerHTML = html;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function searchMemory() {
+      const query = document.getElementById('searchQuery').value;
+      if (!query) return;
+
+      try {
+        const response = await fetch(`${API}/memory/query?project=${PROJECT}&q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        const results = data.data?.results || [];
+        
+        if (!results.length) {
+          document.getElementById('searchResults').innerHTML = '<p style="color: #999;">No matches found</p>';
+          return;
+        }
+
+        const html = results.map(m => `
+          <div class="result-item">
+            <div class="content"><strong>${m.content.substring(0, 80)}</strong></div>
+            <div class="meta">${m.content_type} | ⭐ ${m.importance} | Relevance: ${m.relevance || '?'}</div>
+          </div>
+        `).join('');
+        
+        document.getElementById('searchResults').innerHTML = html;
+      } catch (e) {
+        showStatus('Search error: ' + e.message, 'error');
+      }
+    }
+
+    // Load initial data
+    listResearchNotes();
+  </script>
+</body>
+</html>

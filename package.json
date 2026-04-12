@@ -4,7 +4,7 @@
   "description": "The missing memory layer for AI agents — persistent, searchable, project-isolated memory with encrypted local storage, Electron desktop app, Obsidian integration, and folder sync.",
   "main": "electron/main.js",
   "bin": {
-    "cognexia": "./cli.js"
+    "cognexia": "./cli-new.js"
   },
   "scripts": {
     "test": "jest",
