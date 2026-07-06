@@ -60,7 +60,7 @@ Comprehensive test suite proving Cognexia is production-ready for its intended p
 
 ```bash
 # Install test dependencies
-cd /Users/nikolastojanow/Desktop/claude/Cognexia
+cd /path/to/Cognexia
 pip install -r benchmarks/requirements.txt
 ```
 
@@ -68,7 +68,7 @@ pip install -r benchmarks/requirements.txt
 
 In one terminal:
 ```bash
-cd /Users/nikolastojanow/Desktop/claude/Cognexia
+cd /path/to/Cognexia
 npm start
 # Server starts on http://localhost:3000
 ```
@@ -76,7 +76,7 @@ npm start
 ### Run All Correctness Tests
 
 ```bash
-cd /Users/nikolastojanow/Desktop/claude/Cognexia
+cd /path/to/Cognexia
 pytest benchmarks/test_correctness_*.py -v
 ```
 

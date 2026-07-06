@@ -13,6 +13,9 @@ import tempfile
 import shutil
 from pathlib import Path
 
+# Repo root (parent of benchmarks/)
+REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+
 # Server configuration
 SERVER_HOST = "http://localhost:10000"
 SERVER_PORT = 10000
@@ -31,7 +34,7 @@ def cognexia_server():
     print(f"\n📦 Starting Cognexia server on {SERVER_HOST}...")
     process = subprocess.Popen(
         ["node", "server.js"],
-        cwd="/Users/nikolastojanow/Desktop/claude/Cognexia",
+        cwd=REPO_ROOT,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
