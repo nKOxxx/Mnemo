@@ -155,7 +155,8 @@ function getAllProjectDbs(): { project: string; dbPath: string }[] {
     const match = entry.name.match(/^memory-(.+)$/);
     if (!match) continue;
     const project = match[1];
-    const dbPath = path.join(entry.fullPath, 'bridge.db');
+    // entry.fullPath is not a Dirent property — join against the dir we read.
+    const dbPath = path.join(DATA_LAKE_BASE, entry.name, 'bridge.db');
     if (fs.existsSync(dbPath)) {
       results.push({ project, dbPath });
     }
@@ -696,6 +697,9 @@ const server = new Server(
     capabilities: {
       tools: {},
       resources: {},
+      // Declared because a prompts/list handler is registered below. Without
+      // it the SDK throws at startup and the server never boots.
+      prompts: {},
     },
   }
 );
