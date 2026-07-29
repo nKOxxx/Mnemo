@@ -3361,11 +3361,16 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   }
   const msUntilMaintenance = nextMaintenance - now;
   
-  setTimeout(() => {
+  // unref() so the maintenance schedule never keeps the process alive on its
+  // own — the listening socket is what should hold it open. Without this the
+  // process cannot exit until the 3 AM timer fires.
+  const maintenanceTimer = setTimeout(() => {
     runMaintenance();
     // Then every 24 hours
-    setInterval(runMaintenance, 24 * 60 * 60 * 1000);
+    const maintenanceInterval = setInterval(runMaintenance, 24 * 60 * 60 * 1000);
+    maintenanceInterval.unref();
   }, msUntilMaintenance);
+  maintenanceTimer.unref();
   
   console.log(`[Cognexia] Next maintenance: ${nextMaintenance.toLocaleString()}`);
 });

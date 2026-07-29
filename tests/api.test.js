@@ -72,8 +72,10 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${addr.port}`;
 });
 
-afterAll(() => {
-  server.close();
+afterAll(async () => {
+  // close() is async — awaiting it stops the suite finishing with the
+  // listener still open, which left a handle behind and hung the runner.
+  await new Promise((resolve) => server.close(resolve));
   fs.rmSync(TMP_DIR, { recursive: true, force: true });
 });
 
